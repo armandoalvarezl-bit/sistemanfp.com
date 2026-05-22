@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbwrVF471WgB-BigQZGYcF3LvqhjPRr1W6UGCF6VOGnEqrmC7WlaAVM_mJOTURfMs4MOzw/exec">
-  <title>Sistema Facturacion | Acceso Interno</title>
+  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycby36Qa2zAAwPYRfKKMqoIwV0RRvICzGtbiWt0rl2PeDZjxNTEtnhVVnLimO1jZBPgbt5Q/exec">
+  <title>Nueva Farma | Acceso Interno</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -19,29 +19,29 @@
       <div class="login-hero-content">
         <div class="login-hero-brand">
           <div class="login-hero-brandmark">
-            <img src="assets/logo/logo-nubefarma-clean.png" alt="Sistema Facturacion" />
+            <img src="assets/logo/logo-nubefarma-clean.png" alt="Nueva Farma" />
           </div>
-          <h1 class="login-hero-tag"><span>Sistema De</span><span class="hero-accent">Facturacion</span></h1>
-          <p class="login-hero-subtitle">Gestion de facturacion en la nube</p>
+          <h1 class="login-hero-tag"><span>Panel interno</span><span class="hero-accent">Nueva Farma</span></h1>
+          <p class="login-hero-subtitle">Soporte, licencias y operacion central</p>
         </div>
 
-        <p class="login-hero-copy">Plataforma integral para la administracion, ventas, soporte y control de tu empresa.</p>
+        <p class="login-hero-copy">Gestiona empresas, usuarios, licencias y solicitudes de soporte desde el centro de control.</p>
 
         <div class="login-hero-features">
           <article class="feature-card">
             <div class="feature-icon"><i class="bi bi-shield-check"></i></div>
-            <strong>Seguro</strong>
-            <p>Protegemos tu informacion con altos estandares de seguridad.</p>
+            <strong>Acceso privado</strong>
+            <p>Entrada reservada para el equipo autorizado de administracion y soporte.</p>
           </article>
           <article class="feature-card">
             <div class="feature-icon"><i class="bi bi-bar-chart-line"></i></div>
-            <strong>Inteligente</strong>
-            <p>Herramientas para una gestion eficiente y organizada.</p>
+            <strong>Control central</strong>
+            <p>Administra clientes, licencias y usuarios desde una misma vista.</p>
           </article>
           <article class="feature-card">
             <div class="feature-icon"><i class="bi bi-speedometer2"></i></div>
-            <strong>Disponible</strong>
-            <p>Acceso 24/7 desde cualquier lugar para mantener tu negocio activo.</p>
+            <strong>Respuesta rapida</strong>
+            <p>Entra al panel y atiende solicitudes sin interrumpir la operacion.</p>
           </article>
         </div>
       </div>
@@ -50,12 +50,12 @@
     <section class="auth-card auth-card-internal auth-card-login">
       <div class="auth-card-frame">
         <div class="auth-card-header">
-          <img class="auth-card-header-logo" src="assets/logo/logo-nubefarma-clean.png" alt="Sistema Facturacion">
+          <img class="auth-card-header-logo" src="assets/logo/logo-nubefarma-clean.png" alt="Nueva Farma">
         </div>
 
         <div class="auth-head">
-          <h2>Acceso interno</h2>
-          <p>Ingresa con tu cuenta de soporte y desarrollo.</p>
+          <h2>Equipo Nueva Farma</h2>
+          <p>Ingresa con tu cuenta interna para administrar soporte, licencias y empresas.</p>
         </div>
 
         <form id="loginForm" class="form-stack auth-form">
@@ -65,7 +65,7 @@
                 <label for="loginUsername">Usuario interno</label>
                 <div class="auth-input-shell">
                   <i class="bi bi-person-fill"></i>
-                  <input id="loginUsername" class="form-control" type="text" autocomplete="username" placeholder="Usuario interno" required>
+                  <input id="loginUsername" class="form-control" type="text" autocomplete="username" placeholder="correo interno" required>
                 </div>
               </div>
               <div class="form-field">
@@ -83,10 +83,10 @@
             <div class="auth-form-bottom">
               <div class="auth-form-hint">
                 <i class="bi bi-lock-fill"></i>
-                <span id="loginLicenseHint">Este acceso es de base de datos en linea para el equipo interno y no requiere licencia de empresa.</span>
+                <span id="loginLicenseHint">Este acceso es exclusivo del equipo interno y no requiere licencia de empresa.</span>
               </div>
               <button class="btn btn-brand w-100 auth-submit" type="submit">
-                <span>Entrar al panel interno</span>
+                <span>Entrar al panel</span>
                 <i class="bi bi-arrow-right"></i>
               </button>
             </div>
@@ -94,6 +94,10 @@
         </form>
 
         <div class="auth-access-switch auth-access-switch-bottom">
+          <button class="auth-access-link auth-recovery-link" id="passwordRecoveryButton" type="button">
+            <i class="bi bi-key"></i>
+            <span>Recuperar contrasena</span>
+          </button>
           <a class="auth-access-link" href="pos.html">
             <i class="bi bi-building"></i>
             <span>Volver al acceso de empresas</span>
@@ -101,7 +105,7 @@
         </div>
 
         <div class="auth-error" id="loginError" hidden></div>
-        <div class="auth-version" data-app-version>VERSION WEB - API</div>
+        <div class="auth-version" data-app-version>Nueva Farma POS version 1.3.6.7.8</div>
       </div>
     </section>
   </main>
@@ -109,4 +113,3 @@
   <script src="auth.js"></script>
 </body>
 </html>
-

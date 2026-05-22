@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbwrVF471WgB-BigQZGYcF3LvqhjPRr1W6UGCF6VOGnEqrmC7WlaAVM_mJOTURfMs4MOzw/exec">
+  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycby36Qa2zAAwPYRfKKMqoIwV0RRvICzGtbiWt0rl2PeDZjxNTEtnhVVnLimO1jZBPgbt5Q/exec">
   <title>Sistema Facturacion | Reportes</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,34 +37,40 @@
       </div>
     </aside>
     <main class="app-main">
-      <header class="app-topbar"><div><p class="section-kicker">Reportes</p><h1>Analitica comercial</h1></div></header>
-      <section class="kpi-grid">
-        <article class="kpi-card accent"><small>Ingresos acumulados</small><strong id="reportRevenue">$ 0</strong><span>Ventas registradas</span></article>
-        <article class="kpi-card"><small>Productos vendidos</small><strong id="reportUnits">0</strong><span>Unidades despachadas</span></article>
-        <article class="kpi-card"><small>Ticket promedio</small><strong id="reportAverage">$ 0</strong><span>Promedio por venta</span></article>
-        <article class="kpi-card"><small>Cliente top</small><strong id="reportTopClient">General</strong><span>Mayor numero de compras</span></article>
+      <header class="app-topbar reports-topbar">
+        <div>
+          <p class="section-kicker">Reportes</p>
+          <h1>Analitica comercial</h1>
+        </div>
+        <a class="btn btn-outline-secondary reports-topbar-link" href="cierre-mes.html"><i class="bi bi-calendar-check"></i><span>Cierre de mes</span></a>
+      </header>
+      <section class="kpi-grid reports-kpis">
+        <article class="kpi-card accent reports-kpi-main"><i class="bi bi-graph-up-arrow"></i><small>Ingresos acumulados</small><strong id="reportRevenue">$ 0</strong><span>Ventas registradas</span></article>
+        <article class="kpi-card"><i class="bi bi-box2-heart"></i><small>Productos vendidos</small><strong id="reportUnits">0</strong><span>Unidades despachadas</span></article>
+        <article class="kpi-card"><i class="bi bi-receipt"></i><small>Ticket promedio</small><strong id="reportAverage">$ 0</strong><span>Promedio por venta</span></article>
+        <article class="kpi-card"><i class="bi bi-person-heart"></i><small>Cliente top</small><strong id="reportTopClient">General</strong><span>Mayor numero de compras</span></article>
       </section>
-      <section class="module-card mt-4">
+      <section class="module-card mt-4 reports-print-panel">
         <div class="module-head">
-          <div><h2>Cortes imprimibles</h2><p>Genera un resumen listo para imprimir de las ventas del dia, del mes o del aÃ±o.</p></div>
-          <div class="pill-row">
-            <button class="soft-pill active report-period-btn" data-period="day" type="button">Dia</button>
-            <button class="soft-pill report-period-btn" data-period="month" type="button">Mes</button>
-            <button class="soft-pill report-period-btn" data-period="year" type="button">AÃ±o</button>
+          <div><h2>Cortes imprimibles</h2><p>Genera un resumen listo para imprimir de las ventas del dia, del mes o del ano.</p></div>
+          <div class="pill-row reports-period-tabs" aria-label="Periodo del reporte">
+            <button class="soft-pill active report-period-btn" data-period="day" type="button"><i class="bi bi-sun"></i><span>Dia</span></button>
+            <button class="soft-pill report-period-btn" data-period="month" type="button"><i class="bi bi-calendar3"></i><span>Mes</span></button>
+            <button class="soft-pill report-period-btn" data-period="year" type="button"><i class="bi bi-calendar4-range"></i><span>Ano</span></button>
           </div>
         </div>
         <div class="report-summary-grid" id="reportPeriodSummary"></div>
         <div class="report-print-actions">
-          <button class="btn btn-outline-secondary" id="downloadSalesReport" type="button">Descargar reporte</button>
-          <button class="btn btn-brand" id="printSalesReport" type="button">Imprimir reporte</button>
+          <button class="btn btn-outline-secondary" id="downloadSalesReport" type="button"><i class="bi bi-filetype-pdf"></i><span>Descargar reporte</span></button>
+          <button class="btn btn-brand" id="printSalesReport" type="button"><i class="bi bi-printer"></i><span>Imprimir reporte</span></button>
         </div>
         <div class="report-preview-shell">
           <div class="report-preview-paper" id="reportPrintPreview"></div>
         </div>
       </section>
       <section class="two-col-grid mt-4">
-        <article class="module-card"><div class="module-head"><div><h2>DesempeÃ±o por categoria</h2><p>Comparativo de unidades vendidas.</p></div></div><div id="reportBars" class="stack-list"></div></article>
-        <article class="module-card"><div class="module-head"><div><h2>Resumen ejecutivo</h2><p>Lectura rapida del negocio.</p></div></div><div id="reportInsights" class="stack-list"></div></article>
+        <article class="module-card report-performance-card"><div class="module-head"><div><h2>Desempeño por categoría</h2><p>Comparativo interactivo de unidades vendidas.</p></div></div><div id="reportBars" class="report-performance-chart"></div></article>
+        <article class="module-card"><div class="module-head"><div><h2>Resumen ejecutivo</h2><p>Lectura rápida del negocio.</p></div></div><div id="reportInsights" class="stack-list"></div></article>
       </section>
     </main>
   </div>

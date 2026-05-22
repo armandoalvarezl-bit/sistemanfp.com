@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbwrVF471WgB-BigQZGYcF3LvqhjPRr1W6UGCF6VOGnEqrmC7WlaAVM_mJOTURfMs4MOzw/exec">
+  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycby36Qa2zAAwPYRfKKMqoIwV0RRvICzGtbiWt0rl2PeDZjxNTEtnhVVnLimO1jZBPgbt5Q/exec">
   <title>Sistema Facturacion | Inventario</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -48,7 +48,7 @@
       <section class="two-col-grid wide-left mt-4">
         <article class="module-card">
           <div class="module-head">
-            <div><h2 id="inventoryFormTitle">Nuevo producto</h2><p>Gestiona inventario premium con sincronizaciÃ³n inmediata y datos listos para tu negocio.</p></div>
+            <div><h2 id="inventoryFormTitle">Nuevo producto</h2><p>Gestiona inventario con sincronización inmediata y datos listos para tu negocio.</p></div>
             <div class="pill-row">
               <button class="btn btn-outline-secondary" id="inventoryDownloadButton" type="button">Descargar inventario</button>
               <button class="btn btn-outline-secondary" id="inventoryImportButton" type="button">Importar CSV</button>
@@ -72,11 +72,25 @@
             <div class="form-field inventory-field-category">
               <label for="inventoryCategory">Categoria</label>
               <select class="form-select" id="inventoryCategory" required>
+                <option value="general">General</option>
+                <option value="analgesico">Analgésicos</option>
+                <option value="vitamina">Vitaminas</option>
+                <option value="cuidado">Cuidado</option>
+                <option value="higiene">Higiene</option>
+                <option value="bebe">Bebé</option>
+                <option value="hogar">Hogar</option>
+                <option value="nutricion">Nutrición</option>
+                <option value="bebida">Bebida</option>
+                <option value="dispositivo">Dispositivo</option>
+                <option value="rehabilitacion">Rehabilitación</option>
+                <option value="optica">Óptica</option>
+                <option value="limpieza">Limpieza</option>
+                <option value="proteccion">Protección</option>
+                <option value="respiratorio">Respiratorio</option>
                 <option value="skincare">Skincare</option>
                 <option value="cabello">Cabello</option>
                 <option value="maquillaje">Maquillaje</option>
                 <option value="fragancias">Fragancias</option>
-                <option value="general">General</option>
               </select>
             </div>
             <div class="form-field inventory-field-price">
@@ -160,23 +174,14 @@
           </form>
         </article>
 
-        <article class="module-card">
-          <div class="module-head">
-            <div><h2>Alertas de inventario</h2><p>Revisa stocks crÃ­ticos y vencimientos prioritarios.</p></div>
-            <button class="btn btn-outline-secondary" id="inventoryExpirationButton" type="button">Ver vencimientos</button>
-          </div>
-          <div id="inventoryAlerts" class="stack-list"></div>
-          <div class="module-head mt-4"><div><h2>Distribucion por categoria</h2><p>Resumen de unidades y referencias.</p></div></div>
-          <div id="inventoryCategoryList" class="stack-list"></div>
-        </article>
       </section>
 
-      <section class="module-card mt-4">
-        <div class="module-head"><div><h2>Mapa de inventario</h2><p>Mapa dinamico de existencias por categoria.</p></div></div>
+      <section class="module-card mt-4 inventory-board-card">
+        <div class="module-head"><div><h2>Resumen operativo</h2><p>Lectura compacta por categoria para no perderse entre muchos productos.</p></div></div>
         <div class="inventory-grid" id="inventoryBoard"></div>
       </section>
 
-      <section class="module-card mt-4">
+      <section class="module-card mt-4 inventory-detail-card">
         <div class="module-head"><div><h2>Detalle de inventario</h2><p>Datos detallados con edicion rapida y filtros inteligentes.</p></div></div>
         <div class="inventory-filter-grid">
           <div class="form-field">
@@ -202,21 +207,18 @@
             <input class="form-control" id="inventoryLaboratoryFilter" type="text" placeholder="Filtrar por marca">
           </div>
         </div>
-        <div class="table-responsive">
-          <table class="table align-middle clean-table">
+        <div class="table-responsive inventory-table-wrap">
+          <table class="table align-middle clean-table inventory-table">
             <thead>
               <tr>
-                <th>SKU</th>
                 <th>Producto</th>
-                <th>Imagen</th>
+                <th>SKU</th>
                 <th>Categoria</th>
-                <th>Lote / ref.</th>
-                <th>Venc. / reposicion</th>
-                <th>Estado venc.</th>
-                <th>Marca</th>
-                <th>Registro / ref.</th>
-                <th>Precio</th>
                 <th>Stock</th>
+                <th>Precio</th>
+                <th>Vencimiento</th>
+                <th>Lote</th>
+                <th>Marca</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -260,11 +262,6 @@
   <script src="farmapos-data.js"></script>
 </body>
 </html>
-
-
-
-
-
 
 
 

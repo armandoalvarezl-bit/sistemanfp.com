@@ -8,6 +8,12 @@ const { createMongoStore } = require('./mongo-store');
 const MYSQL_CONFIG_PATH = path.join(__dirname, '..', '..', 'db.config.json');
 const MONGODB_CONFIG_PATH = path.join(__dirname, '..', '..', 'mongodb.config.json');
 const PORT = 8787;
+const PASSWORD_RESET_TTL_MS = 5 * 60 * 1000;
+const PASSWORD_RESET_LOG_CODES = String(process.env.PASSWORD_RESET_LOG_CODES || '').toLowerCase() === 'true';
+const LOGIN_BLOCK_MS = 10 * 60 * 1000;
+const MAX_LOGIN_ATTEMPTS = 5;
+const loginAttempts = new Map();
+const passwordResetTokens = new Map();
 
 function loadDbConfig() {
   if (!fs.existsSync(MYSQL_CONFIG_PATH)) {
@@ -82,6 +88,69 @@ function hashVariants(password) {
   ];
 }
 
+function hashPasswordSecure(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const iterations = 120000;
+  const hash = crypto.pbkdf2Sync(String(password || ''), salt, iterations, 32, 'sha256').toString('hex');
+  return `pbkdf2$${iterations}$${salt}$${hash}`;
+}
+
+function verifyPasswordSecure(password, storedPassword) {
+  const currentHash = String(storedPassword || '').trim();
+  if (!currentHash.startsWith('pbkdf2$')) return false;
+  const parts = currentHash.split('$');
+  if (parts.length !== 4) return false;
+  const iterations = Math.max(1, Number(parts[1] || 1));
+  const salt = parts[2];
+  const expected = Buffer.from(parts[3], 'hex');
+  const actual = crypto.pbkdf2Sync(String(password || ''), salt, iterations, expected.length, 'sha256');
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
+
+function normalizeUsername(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isStrongPassword(password) {
+  const value = String(password || '');
+  return value.length >= 10
+    && /[a-z]/.test(value)
+    && /[A-Z]/.test(value)
+    && /\d/.test(value)
+    && /[^A-Za-z0-9]/.test(value);
+}
+
+function getClientKey(req, username = '') {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const ip = forwarded || req.socket?.remoteAddress || 'local';
+  return `${ip}::${normalizeUsername(username)}`;
+}
+
+function getLoginBlock(key) {
+  const state = loginAttempts.get(key);
+  if (!state) return null;
+  if (state.blockedUntil && Date.now() < state.blockedUntil) return state;
+  if (state.blockedUntil && Date.now() >= state.blockedUntil) {
+    loginAttempts.delete(key);
+    return null;
+  }
+  return state;
+}
+
+function registerLoginFailure(key) {
+  const current = loginAttempts.get(key) || { count: 0, blockedUntil: 0 };
+  current.count += 1;
+  if (current.count >= MAX_LOGIN_ATTEMPTS) {
+    current.blockedUntil = Date.now() + LOGIN_BLOCK_MS;
+  }
+  loginAttempts.set(key, current);
+  return current;
+}
+
+function clearLoginFailures(key) {
+  loginAttempts.delete(key);
+}
+
 async function getLicense(pool, code) {
   if (!code) return null;
   const [rows] = await pool.execute(
@@ -101,8 +170,9 @@ async function authenticateUser(pool, username, password) {
     return null;
   }
 
+  const storedPassword = String(user.password_hash || '');
   const candidates = hashVariants(String(password || ''));
-  if (!candidates.includes(String(user.password_hash || ''))) {
+  if (!verifyPasswordSecure(password, storedPassword) && !candidates.includes(storedPassword)) {
     return null;
   }
 
@@ -113,6 +183,29 @@ async function authenticateUser(pool, username, password) {
     name: String(user.nombre || user.username || '').trim(),
     role: String(user.rol || 'user').trim().toLowerCase()
   };
+}
+
+async function findUserForPasswordReset(pool, username) {
+  const normalized = normalizeUsername(username);
+  if (!normalized || !normalized.includes('@')) return null;
+  const [rows] = await pool.execute(
+    'SELECT id, nombre, username, activo FROM usuarios WHERE LOWER(username) = ? LIMIT 1',
+    [normalized]
+  );
+  const user = rows[0];
+  if (!user || String(user.activo).toUpperCase() !== 'SI') return null;
+  return {
+    id: String(user.id || '').trim(),
+    username: String(user.username || '').trim(),
+    name: String(user.nombre || user.username || '').trim()
+  };
+}
+
+async function updateUserPassword(pool, username, passwordHash) {
+  await pool.execute(
+    'UPDATE usuarios SET password_hash = ? WHERE LOWER(username) = ? LIMIT 1',
+    [passwordHash, normalizeUsername(username)]
+  );
 }
 
 function mapCompanyRow(row) {
@@ -355,6 +448,8 @@ async function createMysqlStore() {
     },
     getLicense: (code) => getLicense(pool, code),
     authenticateUser: (username, password) => authenticateUser(pool, username, password),
+    findUserForPasswordReset: (username) => findUserForPasswordReset(pool, username),
+    updateUserPassword: (username, passwordHash) => updateUserPassword(pool, username, passwordHash),
     loadLicensingOverview: () => loadLicensingOverview(pool),
     saveCompany: (company) => saveCompany(pool, company),
     saveLicense: (license) => saveLicense(pool, license),
@@ -415,6 +510,8 @@ async function createServer() {
           endpoints: [
             'GET /v1/db/status',
             'POST /v1/auth/login',
+            'POST /v1/auth/password-reset/request',
+            'POST /v1/auth/password-reset/confirm',
             'POST /v1/licenses/validate',
             'GET /v1/licensing/overview',
             'POST /v1/licensing/companies',
@@ -429,18 +526,25 @@ async function createServer() {
 
       if (req.method === 'POST' && pathName === '/v1/auth/login') {
         const body = await parseJsonBody(req);
-        const username = String(body.username || '').trim();
+        const username = normalizeUsername(body.username);
         const password = String(body.password || '').trim();
         const code = String(body.code || body.licenseCode || '').trim();
+        const loginKey = getClientKey(req, username);
+        const loginBlock = getLoginBlock(loginKey);
 
         if (!username || !password) {
           return respondJson(res, 400, { ok: false, error: 'Usuario y contrasena son requeridos.' });
         }
+        if (loginBlock?.blockedUntil) {
+          return respondJson(res, 429, { ok: false, error: 'Demasiados intentos fallidos. Espera 10 minutos antes de intentar de nuevo.' });
+        }
 
         const user = await store.authenticateUser(username, password);
         if (!user) {
+          registerLoginFailure(loginKey);
           return respondJson(res, 401, { ok: false, error: 'Usuario o contrasena invalidos.' });
         }
+        clearLoginFailures(loginKey);
 
         const license = await store.getLicense(code);
         return respondJson(res, 200, {
@@ -463,6 +567,91 @@ async function createServer() {
               : null
           }
         });
+      }
+
+      if (req.method === 'POST' && pathName === '/v1/auth/password-reset/request') {
+        const body = await parseJsonBody(req);
+        const username = normalizeUsername(body.username);
+
+        if (!username) {
+          return respondJson(res, 400, { ok: false, error: 'Debes ingresar el correo registrado como usuario.' });
+        }
+
+        if (!username.includes('@')) {
+          return respondJson(res, 400, { ok: false, error: 'Ingresa un correo valido registrado como usuario.' });
+        }
+
+        if (!store.findUserForPasswordReset) {
+          return respondJson(res, 501, { ok: false, error: 'Recuperacion de contrasena no disponible en este origen de datos.' });
+        }
+
+        const user = await store.findUserForPasswordReset(username);
+        if (!user) {
+          return respondJson(res, 404, { ok: false, error: 'Este correo no aparece como usuario activo en la app.' });
+        }
+
+        const resetKey = `reset::${username}`;
+        const existing = passwordResetTokens.get(resetKey);
+        if (existing && Date.now() < existing.expiresAt - 12 * 60 * 1000) {
+          return respondJson(res, 429, { ok: false, error: 'Ya se solicito un codigo hace poco. Espera unos minutos antes de pedir otro.' });
+        }
+
+        const code = String(crypto.randomInt(100000, 1000000));
+        passwordResetTokens.set(resetKey, {
+          codeHash: crypto.createHash('sha256').update(code, 'utf8').digest('hex'),
+          expiresAt: Date.now() + PASSWORD_RESET_TTL_MS,
+          attempts: 0
+        });
+        if (PASSWORD_RESET_LOG_CODES) {
+          console.log(`[password-reset] Codigo temporal generado para un correo registrado (vence en 5 minutos): ${code}`);
+        }
+
+        return respondJson(res, 200, {
+          ok: true,
+          message: 'Codigo temporal enviado al correo registrado.'
+        });
+      }
+
+      if (req.method === 'POST' && pathName === '/v1/auth/password-reset/confirm') {
+        const body = await parseJsonBody(req);
+        const username = normalizeUsername(body.username);
+        const code = String(body.code || '').trim();
+        const newPassword = String(body.newPassword || body.password || '').trim();
+        const resetKey = `reset::${username}`;
+        const state = passwordResetTokens.get(resetKey);
+
+        if (!username || !code || !newPassword) {
+          return respondJson(res, 400, { ok: false, error: 'Correo, codigo y nueva contrasena son requeridos.' });
+        }
+        if (!username.includes('@')) {
+          return respondJson(res, 400, { ok: false, error: 'Codigo invalido o vencido.' });
+        }
+        if (!isStrongPassword(newPassword)) {
+          return respondJson(res, 400, { ok: false, error: 'La nueva contrasena debe tener minimo 10 caracteres, mayuscula, minuscula, numero y simbolo.' });
+        }
+        if (!state || Date.now() > state.expiresAt) {
+          passwordResetTokens.delete(resetKey);
+          return respondJson(res, 400, { ok: false, error: 'Codigo invalido o vencido.' });
+        }
+        if (state.attempts >= 5) {
+          passwordResetTokens.delete(resetKey);
+          return respondJson(res, 429, { ok: false, error: 'Demasiados intentos con el codigo. Solicita uno nuevo.' });
+        }
+
+        const codeHash = crypto.createHash('sha256').update(code, 'utf8').digest('hex');
+        if (codeHash !== state.codeHash) {
+          state.attempts += 1;
+          passwordResetTokens.set(resetKey, state);
+          return respondJson(res, 400, { ok: false, error: 'Codigo invalido o vencido.' });
+        }
+
+        if (!store.updateUserPassword) {
+          return respondJson(res, 501, { ok: false, error: 'Recuperacion de contrasena no disponible en este origen de datos.' });
+        }
+        await store.updateUserPassword(username, hashPasswordSecure(newPassword));
+        passwordResetTokens.delete(resetKey);
+        clearLoginFailures(getClientKey(req, username));
+        return respondJson(res, 200, { ok: true, message: 'Contrasena actualizada correctamente.' });
       }
 
       if (req.method === 'POST' && pathName === '/v1/licenses/validate') {

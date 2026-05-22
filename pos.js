@@ -345,11 +345,13 @@ function renderInventoryBoard() {
 function renderInventoryInsights() {
   const lowStockItems = inventory.filter((item) => item.stock > 0 && item.stock <= 10);
   const outOfStockItems = inventory.filter((item) => item.stock === 0);
-  const categories = ["analgesico", "vitamina", "cuidado"].map((category) => {
-    const items = inventory.filter((item) => item.category === category);
-    const units = items.reduce((sum, item) => sum + item.stock, 0);
-    return { category, count: items.length, units };
-  });
+  const categories = [...new Set(inventory.map((item) => item.category || "general"))]
+    .sort()
+    .map((category) => {
+      const items = inventory.filter((item) => item.category === category);
+      const units = items.reduce((sum, item) => sum + item.stock, 0);
+      return { category, count: items.length, units };
+    });
 
   inventoryAlerts.innerHTML = [
     ...lowStockItems.slice(0, 4).map(
@@ -627,13 +629,13 @@ function printTicket(html) {
       <head>
         <title>Ticket Farma POS</title>
         <style>
-          body { font-family: "Courier New", monospace; padding: 14px; color: #172433; }
-          body > div { max-width: 310px; margin: 0 auto; border: 1px solid #d8e0ea; border-radius: 14px; padding: 14px; }
-          .ticket-line, .ticket-total-line { display:flex; justify-content:space-between; gap:12px; margin:8px 0; }
-          hr { border:0; border-top:1px dashed #999; margin:12px 0; }
-          h3, p { margin:0 0 6px; }
+          body { font-family: "Courier New", monospace; padding: 10px; color: #172433; }
+          body > div { max-width: 280px; margin: 0 auto; border: 1px solid #d8e0ea; border-radius: 14px; padding: 12px; }
+          .ticket-line, .ticket-total-line { display:flex; justify-content:space-between; gap:8px; margin:6px 0; }
+          hr { border:0; border-top:1px dashed #999; margin:10px 0; }
+          h3, p { margin:0 0 5px; }
           .ticket-center { text-align:center; }
-          .ticket-total-line:last-of-type { background:#172433; color:#fff; border-radius:10px; padding:9px; font-size:15px; }
+          .ticket-total-line:last-of-type { background:#172433; color:#fff; border-radius:10px; padding:8px; font-size:14px; }
         </style>
       </head>
       <body>${html}</body>

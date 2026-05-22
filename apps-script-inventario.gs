@@ -56,6 +56,17 @@ function doGet(e) {
       return jsonResponse_(debugInfo_());
     }
 
+    if (mode === 'diagnostics') {
+      var sheet = SpreadsheetApp.getActiveSpreadsheet();
+      return jsonResponse_({
+        ok: true,
+        mode: 'diagnostics',
+        timestamp: new Date().toISOString(),
+        spreadsheet_id: sheet.getId(),
+        spreadsheet_name: sheet.getName()
+      });
+    }
+
     if (mode === 'setup') {
       return jsonResponse_(setupWebApp_({ dryRun: true }));
     }
@@ -175,6 +186,14 @@ function doPost(e) {
       var usersSheet = getUsersSheet_();
       var authResult = authenticateUser_(usersSheet, payload);
       return jsonResponse_(authResult);
+    }
+
+    if (action === 'request_password_reset') {
+      return jsonResponse_(requestPasswordResetWeb_(payload));
+    }
+
+    if (action === 'confirm_password_reset') {
+      return jsonResponse_(confirmPasswordResetWeb_(payload));
     }
 
     if (action === 'setup_web_app') {
@@ -747,7 +766,8 @@ function getPromotionsSheet_() {
 }
 
 function getAuditLogsSheet_() {
-  return getOrCreateSheet_(AUDIT_LOGS_SHEET_NAME, AUDIT_LOG_HEADERS);
+  var sheet = getOrCreateSheet_(AUDIT_LOGS_SHEET_NAME, AUDIT_LOG_HEADERS, ensureAuditLogHeaders_);
+  return sheet;
 }
 
 function ensureHeaders_(sheet) {
@@ -1389,6 +1409,225 @@ function sha256Hex_(value) {
   return hex;
 }
 
+function isStrongPasswordWeb_(password) {
+  var value = String(password || '');
+  return value.length >= 10
+    && /[a-z]/.test(value)
+    && /[A-Z]/.test(value)
+    && /\d/.test(value)
+    && /[^A-Za-z0-9]/.test(value);
+}
+
+function getPasswordResetPropertyKey_(username) {
+  return 'password_reset_' + sha256Hex_(String(username || '').trim().toLowerCase()).slice(0, 32);
+}
+
+function getLoginAttemptPropertyKey_(username) {
+  return 'login_attempt_' + sha256Hex_(String(username || '').trim().toLowerCase()).slice(0, 32);
+}
+
+function getUserRowByUsername_(sheet, username) {
+  var normalizedUsername = String(username || '').trim().toLowerCase();
+  if (!normalizedUsername) return null;
+  var values = sheet.getDataRange().getValues();
+  if (values.length < 2) return null;
+  var headers = values[0].map(function(header) {
+    return String(header).trim();
+  });
+
+  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
+    var user = rowToItem_(headers, values[rowIndex]);
+    var storedUsername = String(getUserField_(user, ['Usuario', 'usuario', 'USUARIO', 'User', 'user', 'Login', 'login', 'Correo', 'correo', 'Email', 'email']) || '').trim().toLowerCase();
+    if (storedUsername === normalizedUsername) {
+      return {
+        rowIndex: rowIndex + 1,
+        headers: headers,
+        user: user,
+        username: storedUsername
+      };
+    }
+  }
+  return null;
+}
+
+function getLoginAttemptState_(username) {
+  var key = getLoginAttemptPropertyKey_(username);
+  var raw = PropertiesService.getScriptProperties().getProperty(key);
+  if (!raw) return { key: key, count: 0, blockedUntil: 0 };
+  try {
+    var parsed = JSON.parse(raw);
+    if (Number(parsed.blockedUntil || 0) && Date.now() > Number(parsed.blockedUntil || 0)) {
+      PropertiesService.getScriptProperties().deleteProperty(key);
+      return { key: key, count: 0, blockedUntil: 0 };
+    }
+    return {
+      key: key,
+      count: Number(parsed.count || 0),
+      blockedUntil: Number(parsed.blockedUntil || 0)
+    };
+  } catch (error) {
+    PropertiesService.getScriptProperties().deleteProperty(key);
+    return { key: key, count: 0, blockedUntil: 0 };
+  }
+}
+
+function registerLoginFailureWeb_(username) {
+  var state = getLoginAttemptState_(username);
+  state.count += 1;
+  if (state.count >= 5) {
+    state.blockedUntil = Date.now() + (10 * 60 * 1000);
+  }
+  PropertiesService.getScriptProperties().setProperty(state.key, JSON.stringify({
+    count: state.count,
+    blockedUntil: state.blockedUntil
+  }));
+}
+
+function clearLoginFailureWeb_(username) {
+  PropertiesService.getScriptProperties().deleteProperty(getLoginAttemptPropertyKey_(username));
+}
+
+function escapeHtmlWeb_(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildPasswordResetEmailHtml_(code, username, displayName) {
+  var safeCode = escapeHtmlWeb_(code);
+  var safeUsername = escapeHtmlWeb_(username);
+  var safeName = escapeHtmlWeb_(displayName || username);
+  return ''
+    + '<div style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#172033;">'
+    + '  <div style="max-width:620px;margin:0 auto;padding:32px 16px;">'
+    + '    <div style="background:#ffffff;border:1px solid #dde6f0;border-radius:14px;overflow:hidden;box-shadow:0 12px 32px rgba(15,31,55,0.10);">'
+    + '      <div style="background:#0f6b63;padding:22px 28px;color:#ffffff;">'
+    + '        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">NubeFarma POS</div>'
+    + '        <div style="font-size:22px;font-weight:700;margin-top:8px;">Recuperacion de contrasena</div>'
+    + '      </div>'
+    + '      <div style="padding:28px;">'
+    + '        <p style="margin:0 0 14px;font-size:16px;line-height:1.55;">Hola ' + safeName + ',</p>'
+    + '        <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#42526a;">Recibimos una solicitud para crear una nueva contrasena de la cuenta <strong>' + safeUsername + '</strong>. Usa este codigo temporal en la app:</p>'
+    + '        <div style="background:#eef8f6;border:1px solid #b9ddd7;border-radius:12px;padding:22px;text-align:center;margin:0 0 22px;">'
+    + '          <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#0f6b63;font-weight:700;margin-bottom:10px;">Codigo de verificacion</div>'
+    + '          <div style="font-size:34px;line-height:1;font-weight:800;letter-spacing:0.22em;color:#102a43;">' + safeCode + '</div>'
+    + '        </div>'
+    + '        <div style="border-left:4px solid #f5a524;background:#fff8e8;padding:14px 16px;border-radius:8px;margin:0 0 22px;color:#5f4708;font-size:14px;line-height:1.55;">Este codigo vence en <strong>5 minutos</strong>. Si no solicitaste el cambio, puedes ignorar este correo y tu contrasena actual seguira igual.</div>'
+    + '        <p style="margin:0;font-size:13px;line-height:1.6;color:#6b778c;">Por seguridad, no compartas este codigo con nadie. El equipo de soporte nunca te pedira tu codigo ni tu contrasena.</p>'
+    + '      </div>'
+    + '      <div style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e6edf5;color:#7a869a;font-size:12px;line-height:1.5;">Mensaje automatico de NubeFarma POS. No respondas a este correo.</div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>';
+}
+
+function requestPasswordResetWeb_(payload) {
+  var username = String(payload.username || payload.usuario || '').trim().toLowerCase();
+  if (!username) {
+    throw new Error('Debes ingresar el correo registrado como usuario.');
+  }
+  if (!/@/.test(username)) {
+    throw new Error('Ingresa un correo valido registrado como usuario.');
+  }
+
+  var sheet = getUsersSheet_();
+  var match = getUserRowByUsername_(sheet, username);
+  if (!match) {
+    throw new Error('Este correo no aparece como usuario en la app.');
+  }
+
+  var active = String(getUserField_(match.user, ['Estado', 'estado', 'STATUS', 'Status', 'Activo', 'activo']) || 'Activo').trim().toUpperCase();
+  if (active !== 'ACTIVO' && active !== 'SI') {
+    throw new Error('Este usuario esta inactivo. No se puede enviar codigo.');
+  }
+
+  var propertyKey = getPasswordResetPropertyKey_(username);
+  var existingRaw = PropertiesService.getScriptProperties().getProperty(propertyKey);
+  if (existingRaw) {
+    try {
+      var existing = JSON.parse(existingRaw);
+      if (Date.now() < Number(existing.createdAt || 0) + (3 * 60 * 1000)) {
+        throw new Error('Ya se solicito un codigo hace poco. Espera unos minutos antes de pedir otro.');
+      }
+    } catch (error) {
+      if (String(error.message || '').indexOf('Ya se solicito') === 0) throw error;
+    }
+  }
+
+  var code = String(Math.floor(100000 + Math.random() * 900000));
+  PropertiesService.getScriptProperties().setProperty(propertyKey, JSON.stringify({
+    codeHash: sha256Hex_(code),
+    createdAt: Date.now(),
+    expiresAt: Date.now() + (5 * 60 * 1000),
+    attempts: 0
+  }));
+
+  MailApp.sendEmail({
+    to: username,
+    name: 'NubeFarma POS',
+    subject: 'Tu codigo de recuperacion de NubeFarma POS',
+    body: 'Hola ' + String(getUserField_(match.user, ['Nombre', 'nombre', 'Name', 'name']) || username).trim() + ',\n\n'
+      + 'Tu codigo temporal de recuperacion es: ' + code + '\n\n'
+      + 'Vence en 5 minutos. Si no solicitaste este cambio, ignora este mensaje.\n\n'
+      + 'Por seguridad, no compartas este codigo con nadie.',
+    htmlBody: buildPasswordResetEmailHtml_(code, username, getUserField_(match.user, ['Nombre', 'nombre', 'Name', 'name']))
+  });
+
+  return {
+    ok: true,
+    action: 'request_password_reset',
+    message: 'Codigo temporal enviado al correo registrado.'
+  };
+}
+
+function confirmPasswordResetWeb_(payload) {
+  var username = String(payload.username || payload.usuario || '').trim().toLowerCase();
+  var code = String(payload.code || payload.codigo || '').trim();
+  var newPassword = String(payload.newPassword || payload.password || payload.contrasena || '').trim();
+  if (!username || !code || !newPassword) {
+    throw new Error('Correo, codigo y nueva contrasena son requeridos.');
+  }
+  if (!/@/.test(username)) {
+    throw new Error('Codigo invalido o vencido.');
+  }
+  if (!isStrongPasswordWeb_(newPassword)) {
+    throw new Error('La nueva contrasena debe tener minimo 10 caracteres, mayuscula, minuscula, numero y simbolo.');
+  }
+
+  var propertyKey = getPasswordResetPropertyKey_(username);
+  var raw = PropertiesService.getScriptProperties().getProperty(propertyKey);
+  if (!raw) throw new Error('Codigo invalido o vencido.');
+  var state = JSON.parse(raw);
+  if (Date.now() > Number(state.expiresAt || 0)) {
+    PropertiesService.getScriptProperties().deleteProperty(propertyKey);
+    throw new Error('Codigo invalido o vencido.');
+  }
+  if (Number(state.attempts || 0) >= 5) {
+    PropertiesService.getScriptProperties().deleteProperty(propertyKey);
+    throw new Error('Demasiados intentos con el codigo. Solicita uno nuevo.');
+  }
+  if (sha256Hex_(code) !== String(state.codeHash || '')) {
+    state.attempts = Number(state.attempts || 0) + 1;
+    PropertiesService.getScriptProperties().setProperty(propertyKey, JSON.stringify(state));
+    throw new Error('Codigo invalido o vencido.');
+  }
+
+  var sheet = getUsersSheet_();
+  var match = getUserRowByUsername_(sheet, username);
+  if (!match) throw new Error('Codigo invalido o vencido.');
+  sheet.getRange(match.rowIndex, 5).setValue(hashPasswordWeb_(newPassword));
+  PropertiesService.getScriptProperties().deleteProperty(propertyKey);
+  clearLoginFailureWeb_(username);
+  return {
+    ok: true,
+    action: 'confirm_password_reset',
+    message: 'Contrasena actualizada correctamente.'
+  };
+}
+
 function authenticateUser_(sheet, payload) {
   var username = String(payload.username || payload.usuario || '').trim().toLowerCase();
   var password = String(payload.password || payload.clave || '').trim();
@@ -1399,6 +1638,11 @@ function authenticateUser_(sheet, payload) {
   }
   if (!password) {
     throw new Error('La clave es obligatoria.');
+  }
+
+  var attemptState = getLoginAttemptState_(username);
+  if (attemptState.blockedUntil && Date.now() < attemptState.blockedUntil) {
+    throw new Error('Demasiados intentos fallidos. Espera 10 minutos antes de intentar de nuevo.');
   }
 
   var values = sheet.getDataRange().getValues();
@@ -1424,8 +1668,10 @@ function authenticateUser_(sheet, payload) {
 
     var passwordVerification = verifyPasswordWeb_(password, storedPassword);
     if (!passwordVerification.ok) {
+      registerLoginFailureWeb_(username);
       throw new Error('Clave incorrecta.');
     }
+    clearLoginFailureWeb_(username);
     if (passwordVerification.needsRehash) {
       sheet.getRange(rowIndex + 1, 5).setValue(hashPasswordWeb_(password));
     }
@@ -2217,13 +2463,13 @@ function getSpreadsheet_() {
   return spreadsheet;
 }
 
-function getOrCreateSheet_(sheetName, headers) {
+function getOrCreateSheet_(sheetName, headers, ensureFn) {
   var spreadsheet = getSpreadsheet_();
   var sheet = spreadsheet.getSheetByName(sheetName);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(sheetName);
   }
-  ensureSimpleHeaders_(sheet, headers);
+  (ensureFn || ensureSimpleHeaders_)(sheet, headers);
   return sheet;
 }
 
@@ -2264,6 +2510,33 @@ function ensureSimpleHeaders_(sheet, headers) {
       throw new Error('La fila de encabezados no coincide con el formato esperado de ' + sheet.getName() + '.');
     }
   }
+}
+
+function ensureAuditLogHeaders_(sheet) {
+  var lastColumn = Math.max(sheet.getLastColumn(), AUDIT_LOG_HEADERS.length);
+  var existingHeaders = lastColumn ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0] : [];
+  var isEmptySheet = sheet.getLastRow() === 0;
+  if (isEmptySheet) {
+    sheet.getRange(1, 1, 1, AUDIT_LOG_HEADERS.length).setValues([AUDIT_LOG_HEADERS]);
+    return;
+  }
+
+  var legacyHeaders = ['id', 'modulo', 'accion', 'entity_id', 'entity_name', 'detalle', 'usuario', 'creado_en'];
+  var legacyMatches = true;
+  for (var i = 0; i < legacyHeaders.length; i += 1) {
+    if (normalizeHeaderKey_(existingHeaders[i]) !== normalizeHeaderKey_(legacyHeaders[i])) {
+      legacyMatches = false;
+      break;
+    }
+  }
+
+  if (legacyMatches) {
+    sheet.insertColumnBefore(8);
+    sheet.getRange(1, 8).setValue('usuario_login');
+    return;
+  }
+
+  ensureSimpleHeaders_(sheet, AUDIT_LOG_HEADERS);
 }
 
 function readSimpleItems_(sheet) {

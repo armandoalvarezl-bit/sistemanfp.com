@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbwrVF471WgB-BigQZGYcF3LvqhjPRr1W6UGCF6VOGnEqrmC7WlaAVM_mJOTURfMs4MOzw/exec">
+  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycby36Qa2zAAwPYRfKKMqoIwV0RRvICzGtbiWt0rl2PeDZjxNTEtnhVVnLimO1jZBPgbt5Q/exec">
   <title>Sistema Facturacion | Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -34,8 +34,12 @@
       </nav>
     </aside>
     <main class="app-main">
-      <header class="app-topbar">
-        <div><p class="section-kicker">Inicio</p><h1></h1></div>
+      <header class="app-topbar dashboard-topbar">
+        <div class="dashboard-topbar-copy">
+          <p class="section-kicker">Inicio</p>
+          <h1>Inicio</h1>
+          <span>Ventas, caja, inventario y licencia.</span>
+        </div>
         <div class="dashboard-session-bar">
           <div class="session-chip">
             <span class="session-chip-label">Usuario</span>
@@ -49,9 +53,9 @@
             <span class="session-chip-label">Ingreso</span>
             <strong id="sessionLoginAt">--</strong>
           </div>
-          <a class="btn btn-brand" href="ventas.html">Ir a ventas</a>
-          <a class="btn btn-outline-secondary" href="pedidos-domicilio.html">Ordenes domicilio</a>
-          <button class="btn btn-outline-secondary" id="logoutButton" type="button">Cerrar sesion</button>
+          <a class="btn btn-brand" href="ventas.html"><i class="bi bi-receipt-cutoff"></i><span>Ir a ventas</span></a>
+          <a class="btn btn-outline-secondary" href="pedidos-domicilio.html"><i class="bi bi-scooter"></i><span>Domicilios</span></a>
+          <button class="btn btn-outline-secondary" id="logoutButton" type="button"><i class="bi bi-box-arrow-right"></i><span>Cerrar sesion</span></button>
         </div>
       </header>
       <section class="dashboard-pharmacy-banner">
@@ -85,7 +89,7 @@
             <span>Fecha de corte</span>
             <strong id="dashboardLicenseCutoff">--</strong>
           </div>
-          <a class="btn btn-outline-secondary" href="configuracion.html">Editar datos</a>
+          <a class="btn btn-outline-secondary" href="configuracion.html"><i class="bi bi-pencil-square"></i><span>Editar datos</span></a>
         </div>
       </section>
       <section class="dashboard-license-notice" id="dashboardLicenseNotice" hidden></section>
@@ -100,9 +104,9 @@
             </p>
           </div>
           <div class="hero-links">
-            <a class="btn btn-light" href="ventas.html">Registrar venta</a>
-            <a class="btn btn-outline-light" href="inventario.html">Ver inventario</a>
-            <a class="btn btn-outline-light" href="reportes.html">Abrir reportes</a>
+            <a class="btn btn-light" href="ventas.html"><i class="bi bi-plus-lg"></i><span>Registrar venta</span></a>
+            <a class="btn btn-outline-light" href="inventario.html"><i class="bi bi-box-seam"></i><span>Ver inventario</span></a>
+            <a class="btn btn-outline-light" href="reportes.html"><i class="bi bi-clipboard-data"></i><span>Abrir reportes</span></a>
           </div>
           <div class="dashboard-main-strip">
             <div>
@@ -282,10 +286,31 @@
       </section>
     </main>
   </div>
+  <!-- Modal elegante de cierre de sesión (dashboard) -->
+  <div class="session-logout-modal" id="logoutModal" hidden>
+    <div class="session-logout-backdrop" id="logoutBackdrop"></div>
+    <div class="session-logout-card">
+      <div class="session-logout-head">
+        <div>
+          <p class="session-logout-kicker">Cuenta</p>
+          <h3>¿Cerrar sesión?</h3>
+        </div>
+        <button class="icon-action" id="closeLogoutModal" type="button"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="session-logout-body">
+        <p class="muted">Has iniciado sesión como <strong id="logoutUserName">usuario</strong>.</p>
+        <p>Al cerrar sesión se cerrarán tus sesiones activas y volverás a la pantalla de inicio de sesión.</p>
+      </div>
+      <div class="session-logout-actions">
+        <button class="btn btn-outline-secondary" id="cancelLogout" type="button">Cancelar</button>
+        <button class="btn btn-danger" id="confirmLogout" type="button">Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
+
   <script src="farmapos-data.js"></script>
 </body>
 </html>
-
 
 
 

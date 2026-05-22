@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbwrVF471WgB-BigQZGYcF3LvqhjPRr1W6UGCF6VOGnEqrmC7WlaAVM_mJOTURfMs4MOzw/exec">
+  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycby36Qa2zAAwPYRfKKMqoIwV0RRvICzGtbiWt0rl2PeDZjxNTEtnhVVnLimO1jZBPgbt5Q/exec">
   <title>Sistema Facturacion | Soporte</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,8 +37,8 @@
       </div>
     </aside>
     <main class="app-main">
-      <header class="app-topbar">
-        <div>
+      <header class="app-topbar support-topbar">
+        <div class="support-topbar-copy">
           <p class="section-kicker">Ayuda</p>
           <h1>Centro de soporte</h1>
         </div>
@@ -51,16 +51,16 @@
             <span class="session-chip-label">Rol</span>
             <strong data-session-role="true">Cajero</strong>
           </div>
-          <a class="btn btn-outline-secondary" href="ventas.html">Volver a ventas</a>
-          <button class="btn btn-outline-secondary" id="logoutButton" type="button">Cerrar sesion</button>
+          <a class="btn btn-outline-secondary" href="ventas.html"><i class="bi bi-arrow-left"></i><span>Volver a ventas</span></a>
+          <button class="btn btn-outline-secondary" id="logoutButton" type="button"><i class="bi bi-box-arrow-right"></i><span>Cerrar sesion</span></button>
         </div>
       </header>
 
-      <section class="kpi-grid licensing-kpi-grid">
-        <article class="kpi-card accent"><small>Tickets</small><strong id="supportTicketTotal">0</strong><span>Total de conversaciones</span></article>
-        <article class="kpi-card"><small>Abiertos</small><strong id="supportTicketOpen">0</strong><span>Pendientes por resolver</span></article>
-        <article class="kpi-card"><small>No leidos</small><strong id="supportUnreadCounter">0</strong><span>Mensajes nuevos</span></article>
-        <article class="kpi-card"><small>Canales directos</small><strong>3</strong><span>Correo, llamada y WhatsApp</span></article>
+      <section class="kpi-grid licensing-kpi-grid support-kpi-grid">
+        <article class="kpi-card accent"><i class="bi bi-life-preserver"></i><small>Tickets</small><strong id="supportTicketTotal">0</strong><span>Total de conversaciones</span></article>
+        <article class="kpi-card"><i class="bi bi-hourglass-split"></i><small>Abiertos</small><strong id="supportTicketOpen">0</strong><span>Pendientes por resolver</span></article>
+        <article class="kpi-card"><i class="bi bi-bell"></i><small>No leidos</small><strong id="supportUnreadCounter">0</strong><span>Mensajes nuevos</span></article>
+        <article class="kpi-card"><i class="bi bi-headset"></i><small>Canales directos</small><strong>3</strong><span>Correo, llamada y WhatsApp</span></article>
       </section>
 
       <section class="support-layout-grid mt-4">
@@ -72,8 +72,8 @@
             </div>
           </div>
           <div class="support-toolbar">
-            <button class="btn btn-brand" id="supportNewTicketButton" type="button">Nuevo ticket</button>
-            <button class="btn btn-outline-secondary" id="supportRefreshButton" type="button">Actualizar</button>
+            <button class="btn btn-brand" id="supportNewTicketButton" type="button"><i class="bi bi-plus-lg"></i><span>Nuevo ticket</span></button>
+            <button class="btn btn-outline-secondary" id="supportRefreshButton" type="button"><i class="bi bi-arrow-clockwise"></i><span>Actualizar</span></button>
           </div>
           <div class="user-admin-list" id="supportTicketList"></div>
         </article>
@@ -91,7 +91,7 @@
                 <option value="RESUELTO">Resuelto</option>
                 <option value="CERRADO">Cerrado</option>
               </select>
-              <button class="btn btn-outline-secondary" id="supportUpdateStatusButton" type="button" hidden>Actualizar estado</button>
+              <button class="btn btn-outline-secondary" id="supportUpdateStatusButton" type="button" hidden><i class="bi bi-check2-circle"></i><span>Actualizar estado</span></button>
             </div>
           </div>
 
@@ -110,7 +110,7 @@
               <label class="settings-field wide"><span>Describe la solicitud</span><textarea id="supportTicketMessageInput" rows="5" placeholder="Cuéntanos lo que pasa, cuándo ocurre y qué necesitas." maxlength="5000"></textarea></label>
             </div>
             <div class="settings-inline-actions">
-              <button class="btn btn-brand" id="supportCreateTicketButton" type="button">Crear ticket</button>
+              <button class="btn btn-brand" id="supportCreateTicketButton" type="button"><i class="bi bi-send"></i><span>Crear ticket</span></button>
             </div>
           </div>
 
@@ -121,7 +121,7 @@
           <div class="support-reply-box">
             <textarea id="supportReplyInput" rows="3" placeholder="Escribe tu respuesta o detalle adicional..." maxlength="5000"></textarea>
             <div class="settings-inline-actions">
-              <button class="btn btn-brand" id="supportSendReplyButton" type="button">Enviar mensaje</button>
+              <button class="btn btn-brand" id="supportSendReplyButton" type="button"><i class="bi bi-send-fill"></i><span>Enviar mensaje</span></button>
             </div>
           </div>
         </article>
@@ -135,14 +135,17 @@
           </div>
           <div class="stack-list">
             <a class="list-card support-contact-link" href="mailto:soporte@bellezapos.local">
+              <i class="bi bi-envelope"></i>
               <strong>Correo</strong>
               <span>soporte@bellezapos.local</span>
             </a>
             <a class="list-card support-contact-link" href="tel:+573127947484">
+              <i class="bi bi-telephone"></i>
               <strong>Llamadas</strong>
               <span>3127947484</span>
             </a>
             <a class="list-card support-contact-link" href="https://wa.me/573206135719" target="_blank" rel="noopener noreferrer">
+              <i class="bi bi-whatsapp"></i>
               <strong>WhatsApp</strong>
               <span>3206135719</span>
             </a>
@@ -158,8 +161,6 @@
   <script src="farmapos-data.js"></script>
 </body>
 </html>
-
-
 
 
 

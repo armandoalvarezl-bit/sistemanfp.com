@@ -18,7 +18,7 @@ var SUPPORT_TICKETS_SHEET_NAME = 'SoporteTickets';
 var SUPPORT_MESSAGES_SHEET_NAME = 'SoporteMensajes';
 var REQUIRED_HEADERS = ['id', 'sku', 'nombre', 'categoria', 'precio', 'stock', 'lote', 'fecha_vencimiento', 'laboratorio', 'registro_invima', 'codigo_barras', 'descripcion', 'imagen_url', 'activo'];
 var LEGACY_SALES_HEADERS = ['id', 'ticket_numero', 'fecha', 'hora', 'cliente_nombre', 'cliente_documento', 'metodo_pago', 'recibido', 'cambio', 'subtotal', 'impuesto', 'total', 'items_json', 'creado_en'];
-var SALES_HEADERS = ['id', 'ticket_numero', 'fecha', 'hora', 'cliente_nombre', 'cliente_documento', 'metodo_pago', 'recibido', 'cambio', 'subtotal', 'impuesto', 'total', 'items_json', 'creado_en', 'puntos_usados', 'descuento_puntos', 'puntos_ganados', 'domicilio_estado', 'domicilio_actualizado_en', 'estado', 'anulado_en', 'anulado_por', 'motivo_anulacion'];
+var SALES_HEADERS = ['id', 'ticket_numero', 'fecha', 'hora', 'cliente_nombre', 'cliente_documento', 'metodo_pago', 'recibido', 'cambio', 'subtotal', 'impuesto', 'total', 'items_json', 'creado_en', 'puntos_usados', 'descuento_puntos', 'puntos_ganados'];
 var USER_HEADERS = ['Id', 'Nombre', 'Usuario', 'contraseña', 'Estado'];
 var WITHDRAWALS_HEADERS = ['id', 'retiro_numero', 'fecha', 'hora', 'monto', 'motivo', 'cajero_usuario', 'cajero_nombre', 'supervisor_usuario', 'supervisor_nombre', 'creado_en'];
 var CASH_CLOSURES_HEADERS = ['id', 'cierre_numero', 'fecha', 'creado_en', 'usuario', 'apertura', 'ventas_efectivo', 'ventas_tarjeta', 'ventas_transferencia', 'retiros_total', 'ajuste_manual', 'efectivo_contado', 'efectivo_esperado', 'diferencia', 'transacciones', 'ventas_total', 'unidades', 'observaciones', 'ventas_json'];
@@ -54,6 +54,17 @@ function doGet(e) {
 
     if (mode === 'debug') {
       return jsonResponse_(debugInfo_());
+    }
+
+    if (mode === 'diagnostics') {
+      var sheet = SpreadsheetApp.getActiveSpreadsheet();
+      return jsonResponse_({
+        ok: true,
+        mode: 'diagnostics',
+        timestamp: new Date().toISOString(),
+        spreadsheet_id: sheet.getId(),
+        spreadsheet_name: sheet.getName()
+      });
     }
 
     if (mode === 'setup') {
@@ -131,16 +142,6 @@ function doGet(e) {
       });
     }
 
-    if (mode === 'system_update') {
-      var settingsSheet = getSettingsSheet_();
-      return jsonResponse_({
-        ok: true,
-        mode: 'system_update',
-        updated_at: new Date().toISOString(),
-        message: getSetting_(settingsSheet, 'system_update_message')
-      });
-    }
-
     if (mode === 'all') {
       return jsonResponse_(buildFullWorkbookState_('all'));
     }
@@ -187,6 +188,14 @@ function doPost(e) {
       return jsonResponse_(authResult);
     }
 
+    if (action === 'request_password_reset') {
+      return jsonResponse_(requestPasswordResetWeb_(payload));
+    }
+
+    if (action === 'confirm_password_reset') {
+      return jsonResponse_(confirmPasswordResetWeb_(payload));
+    }
+
     if (action === 'setup_web_app') {
       return jsonResponse_(setupWebApp_(payload));
     }
@@ -224,19 +233,6 @@ function doPost(e) {
         action: 'licensing_overview',
         updated_at: new Date().toISOString(),
         overview: getLicensingOverviewWeb_()
-      });
-    }
-
-    if (action === 'save_system_update') {
-      var settingsSheet = getSettingsSheet_();
-      var message = String(payload.message || '').trim();
-
-      var savedMessage = saveSetting_(settingsSheet, 'system_update_message', message);
-      return jsonResponse_({
-        ok: true,
-        action: 'save_system_update',
-        updated_at: new Date().toISOString(),
-        message: savedMessage
       });
     }
 
@@ -463,98 +459,6 @@ function doPost(e) {
         sale: savedSale,
         total: sales.length,
         sales: sales
-      });
-    }
-
-    if (action === 'anular') {
-      var salesSheet = getSalesSheet_();
-      var saleReference = String(payload.saleId || payload.id || payload.ticketNumber || payload.ticket_numero || '').trim();
-      if (!saleReference) {
-        throw new Error('No se recibio el identificador de la venta a anular.');
-      }
-
-      var salesValues = salesSheet.getDataRange().getValues();
-      if (salesValues.length < 2) {
-        throw new Error('No hay ventas registradas.');
-      }
-
-      var salesHeaders = salesValues[0].map(function(header) {
-        return String(header || '').trim();
-      });
-      var idIndex = salesHeaders.indexOf('id');
-      var ticketIndex = salesHeaders.indexOf('ticket_numero');
-      var statusIndex = salesHeaders.indexOf('estado');
-      var annulledAtIndex = salesHeaders.indexOf('anulado_en');
-      var annulledByIndex = salesHeaders.indexOf('anulado_por');
-      var annulledReasonIndex = salesHeaders.indexOf('motivo_anulacion');
-
-      var targetRowIndex = -1;
-      for (var rowIndex = 1; rowIndex < salesValues.length; rowIndex += 1) {
-        var rowId = idIndex >= 0 ? String(salesValues[rowIndex][idIndex] || '').trim() : '';
-        var rowTicket = ticketIndex >= 0 ? String(salesValues[rowIndex][ticketIndex] || '').trim() : '';
-        if (rowId === saleReference || rowTicket === saleReference) {
-          targetRowIndex = rowIndex;
-          break;
-        }
-      }
-
-      if (targetRowIndex === -1) {
-        throw new Error('Venta no encontrada.');
-      }
-
-      var saleRow = rowToItem_(salesHeaders, salesValues[targetRowIndex]);
-      var storedSale = normalizeStoredSale_(saleRow);
-      if (storedSale.status === 'ANULADA') {
-        throw new Error('La venta ya esta anulada.');
-      }
-
-      if (statusIndex >= 0) {
-        salesValues[targetRowIndex][statusIndex] = 'ANULADA';
-      }
-      if (annulledAtIndex >= 0) {
-        salesValues[targetRowIndex][annulledAtIndex] = new Date().toISOString();
-      }
-      if (annulledByIndex >= 0) {
-        salesValues[targetRowIndex][annulledByIndex] = String(payload.annulledBy || payload.cancelledBy || '').trim();
-      }
-      if (annulledReasonIndex >= 0) {
-        salesValues[targetRowIndex][annulledReasonIndex] = String(payload.annulledReason || payload.reason || '').trim();
-      }
-
-      salesSheet.getRange(targetRowIndex + 1, 1, 1, salesHeaders.length).setValues([salesValues[targetRowIndex]]);
-
-      if (Array.isArray(storedSale.items) && storedSale.items.length) {
-        var inventorySheet = getInventorySheet_();
-        restoreSaleStock_(inventorySheet, storedSale.items);
-      }
-
-      var sales = readSalesItems_(salesSheet);
-      return jsonResponse_({
-        ok: true,
-        action: 'anular',
-        updated_at: new Date().toISOString(),
-        sale: normalizeStoredSale_(rowToItem_(salesHeaders, salesValues[targetRowIndex])),
-        total: sales.length,
-        sales: sales,
-        inventory: readInventoryItems_(getInventorySheet_())
-      });
-    }
-
-    if (action === 'update_delivery_order_status') {
-      var deliverySalesSheet = getSalesSheet_();
-      var updatedDeliverySale = updateDeliveryOrderStatus_(
-        deliverySalesSheet,
-        payload.id || payload.saleId || payload.ticketNumber || payload.ticket_numero,
-        payload.status || payload.estado
-      );
-      var deliverySales = readSalesItems_(deliverySalesSheet);
-      return jsonResponse_({
-        ok: true,
-        action: 'update_delivery_order_status',
-        updated_at: new Date().toISOString(),
-        sale: updatedDeliverySale,
-        total: deliverySales.length,
-        sales: deliverySales
       });
     }
 
@@ -862,7 +766,8 @@ function getPromotionsSheet_() {
 }
 
 function getAuditLogsSheet_() {
-  return getOrCreateSheet_(AUDIT_LOGS_SHEET_NAME, AUDIT_LOG_HEADERS);
+  var sheet = getOrCreateSheet_(AUDIT_LOGS_SHEET_NAME, AUDIT_LOG_HEADERS, ensureAuditLogHeaders_);
+  return sheet;
 }
 
 function ensureHeaders_(sheet) {
@@ -926,26 +831,6 @@ function ensureSalesHeaders_(sheet) {
   if (legacyMatches) {
     for (var k = LEGACY_SALES_HEADERS.length; k < SALES_HEADERS.length; k += 1) {
       sheet.getRange(1, k + 1).setValue(SALES_HEADERS[k]);
-    }
-    return;
-  }
-
-  var existingHeaderCount = existingHeaders.length;
-  while (existingHeaderCount > 0 && String(existingHeaders[existingHeaderCount - 1] || '').trim() === '') {
-    existingHeaderCount -= 1;
-  }
-
-  var currentPrefixMatches = existingHeaderCount > 0;
-  for (var p = 0; p < existingHeaderCount && p < SALES_HEADERS.length; p += 1) {
-    if (String(existingHeaders[p] || '').trim() !== SALES_HEADERS[p]) {
-      currentPrefixMatches = false;
-      break;
-    }
-  }
-
-  if (currentPrefixMatches && existingHeaderCount < SALES_HEADERS.length) {
-    for (var h = existingHeaderCount; h < SALES_HEADERS.length; h += 1) {
-      sheet.getRange(1, h + 1).setValue(SALES_HEADERS[h]);
     }
     return;
   }
@@ -1104,45 +989,6 @@ function ensureSettingsHeaders_(sheet) {
       throw new Error('La fila de encabezados de configuración no coincide con el formato esperado. Debe ser: ' + SETTINGS_HEADERS.join(', '));
     }
   }
-}
-
-function readSettings_(sheet) {
-  var values = sheet.getDataRange().getValues();
-  if (values.length < 2) return {};
-
-  var settings = {};
-  for (var i = 1; i < values.length; i += 1) {
-    var key = String(values[i][0] || '').trim();
-    if (!key) continue;
-    settings[key] = String(values[i][1] || '').trim();
-  }
-  return settings;
-}
-
-function getSetting_(sheet, key) {
-  var cleanedKey = String(key || '').trim();
-  if (!cleanedKey) return '';
-  var settings = readSettings_(sheet);
-  return settings[cleanedKey] || '';
-}
-
-function saveSetting_(sheet, key, value) {
-  var cleanedKey = String(key || '').trim();
-  if (!cleanedKey) {
-    throw new Error('La clave de configuración es obligatoria.');
-  }
-
-  var settings = readSettings_(sheet);
-  settings[cleanedKey] = String(value || '').trim();
-
-  var rows = [SETTINGS_HEADERS];
-  Object.keys(settings).forEach(function(settingKey) {
-    rows.push([settingKey, settings[settingKey] || '']);
-  });
-
-  sheet.clearContents();
-  sheet.getRange(1, 1, rows.length, SETTINGS_HEADERS.length).setValues(rows);
-  return settings[cleanedKey];
 }
 
 function readInventoryItems_(sheet) {
@@ -1304,11 +1150,6 @@ function normalizeStoredSale_(sale) {
     items = [];
   }
 
-  var status = String(sale.estado || sale.status || '').trim().toUpperCase();
-  if (status !== 'ANULADA') {
-    status = 'ACTIVA';
-  }
-
   return {
     id: String(sale.id || '').trim(),
     ticketNumber: String(sale.ticket_numero || '').trim(),
@@ -1325,12 +1166,6 @@ function normalizeStoredSale_(sale) {
     redeemedPoints: Number(sale.puntos_usados || 0),
     loyaltyDiscount: Number(sale.descuento_puntos || 0),
     earnedPoints: Number(sale.puntos_ganados || 0),
-    deliveryStatus: String(sale.domicilio_estado || '').trim(),
-    deliveryUpdatedAt: String(sale.domicilio_actualizado_en || '').trim(),
-    status: status,
-    annulledAt: String(sale.anulado_en || sale.annulledAt || '').trim(),
-    annulledBy: String(sale.anulado_por || sale.annulledBy || '').trim(),
-    annulledReason: String(sale.motivo_anulacion || sale.annulledReason || '').trim(),
     items: Array.isArray(items) ? items : []
   };
 }
@@ -1403,33 +1238,8 @@ function normalizeIncomingSale_(sale) {
     redeemedPoints: Number(sale.redeemedPoints || sale.pointsUsed || 0),
     loyaltyDiscount: Number(sale.loyaltyDiscount || sale.discountFromPoints || 0),
     earnedPoints: Number(sale.earnedPoints || 0),
-    deliveryStatus: normalizeDeliveryStatus_(sale.deliveryStatus || sale.domicilio_estado || ''),
-    deliveryUpdatedAt: String(sale.deliveryUpdatedAt || sale.domicilio_actualizado_en || '').trim(),
     items: Array.isArray(sale.items) ? sale.items : []
   };
-}
-
-function normalizeDeliveryStatus_(status) {
-  var normalized = String(status || '').trim().toLowerCase();
-  if (normalized === 'preparando') return 'preparando';
-  if (normalized === 'despachado') return 'despachado';
-  if (normalized === 'en_camino' || normalized === 'en camino' || normalized === 'camino') return 'en_camino';
-  if (normalized === 'entregado') return 'entregado';
-  if (normalized === 'cancelado') return 'cancelado';
-  if (normalized === 'pendiente') return 'pendiente';
-  return '';
-}
-
-function isDeliverySale_(sale) {
-  var paymentMethod = String(sale.paymentMethod || '').toLowerCase();
-  if (paymentMethod.indexOf('domicilio') !== -1 || paymentMethod.indexOf('pedido web') !== -1 || paymentMethod.indexOf('orden web') !== -1) {
-    return true;
-  }
-  var items = Array.isArray(sale.items) ? sale.items : [];
-  for (var i = 0; i < items.length; i += 1) {
-    if (items[i] && items[i].deliveryMeta) return true;
-  }
-  return false;
 }
 
 function normalizeIncomingWithdrawal_(withdrawal) {
@@ -1538,21 +1348,10 @@ function readCompanyProfile_(sheet) {
 
 function saveCompanyProfile_(sheet, profile) {
   var normalized = normalizeCompanyProfile_(profile);
-  var settings = readSettings_(sheet);
-
-  COMPANY_PROFILE_KEYS.forEach(function(key) {
-    settings[key] = normalized[key] || '';
-  });
-
   var rows = [SETTINGS_HEADERS];
-  COMPANY_PROFILE_KEYS.forEach(function(key) {
-    rows.push([key, settings[key] || '']);
-  });
 
-  Object.keys(settings).forEach(function(settingKey) {
-    if (COMPANY_PROFILE_KEYS.indexOf(settingKey) < 0) {
-      rows.push([settingKey, settings[settingKey] || '']);
-    }
+  COMPANY_PROFILE_KEYS.forEach(function(key) {
+    rows.push([key, normalized[key] || '']);
   });
 
   sheet.clearContents();
@@ -1610,6 +1409,225 @@ function sha256Hex_(value) {
   return hex;
 }
 
+function isStrongPasswordWeb_(password) {
+  var value = String(password || '');
+  return value.length >= 10
+    && /[a-z]/.test(value)
+    && /[A-Z]/.test(value)
+    && /\d/.test(value)
+    && /[^A-Za-z0-9]/.test(value);
+}
+
+function getPasswordResetPropertyKey_(username) {
+  return 'password_reset_' + sha256Hex_(String(username || '').trim().toLowerCase()).slice(0, 32);
+}
+
+function getLoginAttemptPropertyKey_(username) {
+  return 'login_attempt_' + sha256Hex_(String(username || '').trim().toLowerCase()).slice(0, 32);
+}
+
+function getUserRowByUsername_(sheet, username) {
+  var normalizedUsername = String(username || '').trim().toLowerCase();
+  if (!normalizedUsername) return null;
+  var values = sheet.getDataRange().getValues();
+  if (values.length < 2) return null;
+  var headers = values[0].map(function(header) {
+    return String(header).trim();
+  });
+
+  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
+    var user = rowToItem_(headers, values[rowIndex]);
+    var storedUsername = String(getUserField_(user, ['Usuario', 'usuario', 'USUARIO', 'User', 'user', 'Login', 'login', 'Correo', 'correo', 'Email', 'email']) || '').trim().toLowerCase();
+    if (storedUsername === normalizedUsername) {
+      return {
+        rowIndex: rowIndex + 1,
+        headers: headers,
+        user: user,
+        username: storedUsername
+      };
+    }
+  }
+  return null;
+}
+
+function getLoginAttemptState_(username) {
+  var key = getLoginAttemptPropertyKey_(username);
+  var raw = PropertiesService.getScriptProperties().getProperty(key);
+  if (!raw) return { key: key, count: 0, blockedUntil: 0 };
+  try {
+    var parsed = JSON.parse(raw);
+    if (Number(parsed.blockedUntil || 0) && Date.now() > Number(parsed.blockedUntil || 0)) {
+      PropertiesService.getScriptProperties().deleteProperty(key);
+      return { key: key, count: 0, blockedUntil: 0 };
+    }
+    return {
+      key: key,
+      count: Number(parsed.count || 0),
+      blockedUntil: Number(parsed.blockedUntil || 0)
+    };
+  } catch (error) {
+    PropertiesService.getScriptProperties().deleteProperty(key);
+    return { key: key, count: 0, blockedUntil: 0 };
+  }
+}
+
+function registerLoginFailureWeb_(username) {
+  var state = getLoginAttemptState_(username);
+  state.count += 1;
+  if (state.count >= 5) {
+    state.blockedUntil = Date.now() + (10 * 60 * 1000);
+  }
+  PropertiesService.getScriptProperties().setProperty(state.key, JSON.stringify({
+    count: state.count,
+    blockedUntil: state.blockedUntil
+  }));
+}
+
+function clearLoginFailureWeb_(username) {
+  PropertiesService.getScriptProperties().deleteProperty(getLoginAttemptPropertyKey_(username));
+}
+
+function escapeHtmlWeb_(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildPasswordResetEmailHtml_(code, username, displayName) {
+  var safeCode = escapeHtmlWeb_(code);
+  var safeUsername = escapeHtmlWeb_(username);
+  var safeName = escapeHtmlWeb_(displayName || username);
+  return ''
+    + '<div style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#172033;">'
+    + '  <div style="max-width:620px;margin:0 auto;padding:32px 16px;">'
+    + '    <div style="background:#ffffff;border:1px solid #dde6f0;border-radius:14px;overflow:hidden;box-shadow:0 12px 32px rgba(15,31,55,0.10);">'
+    + '      <div style="background:#0f6b63;padding:22px 28px;color:#ffffff;">'
+    + '        <div style="font-size:13px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">NubeFarma POS</div>'
+    + '        <div style="font-size:22px;font-weight:700;margin-top:8px;">Recuperacion de contrasena</div>'
+    + '      </div>'
+    + '      <div style="padding:28px;">'
+    + '        <p style="margin:0 0 14px;font-size:16px;line-height:1.55;">Hola ' + safeName + ',</p>'
+    + '        <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#42526a;">Recibimos una solicitud para crear una nueva contrasena de la cuenta <strong>' + safeUsername + '</strong>. Usa este codigo temporal en la app:</p>'
+    + '        <div style="background:#eef8f6;border:1px solid #b9ddd7;border-radius:12px;padding:22px;text-align:center;margin:0 0 22px;">'
+    + '          <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#0f6b63;font-weight:700;margin-bottom:10px;">Codigo de verificacion</div>'
+    + '          <div style="font-size:34px;line-height:1;font-weight:800;letter-spacing:0.22em;color:#102a43;">' + safeCode + '</div>'
+    + '        </div>'
+    + '        <div style="border-left:4px solid #f5a524;background:#fff8e8;padding:14px 16px;border-radius:8px;margin:0 0 22px;color:#5f4708;font-size:14px;line-height:1.55;">Este codigo vence en <strong>5 minutos</strong>. Si no solicitaste el cambio, puedes ignorar este correo y tu contrasena actual seguira igual.</div>'
+    + '        <p style="margin:0;font-size:13px;line-height:1.6;color:#6b778c;">Por seguridad, no compartas este codigo con nadie. El equipo de soporte nunca te pedira tu codigo ni tu contrasena.</p>'
+    + '      </div>'
+    + '      <div style="padding:16px 28px;background:#f8fafc;border-top:1px solid #e6edf5;color:#7a869a;font-size:12px;line-height:1.5;">Mensaje automatico de NubeFarma POS. No respondas a este correo.</div>'
+    + '    </div>'
+    + '  </div>'
+    + '</div>';
+}
+
+function requestPasswordResetWeb_(payload) {
+  var username = String(payload.username || payload.usuario || '').trim().toLowerCase();
+  if (!username) {
+    throw new Error('Debes ingresar el correo registrado como usuario.');
+  }
+  if (!/@/.test(username)) {
+    throw new Error('Ingresa un correo valido registrado como usuario.');
+  }
+
+  var sheet = getUsersSheet_();
+  var match = getUserRowByUsername_(sheet, username);
+  if (!match) {
+    throw new Error('Este correo no aparece como usuario en la app.');
+  }
+
+  var active = String(getUserField_(match.user, ['Estado', 'estado', 'STATUS', 'Status', 'Activo', 'activo']) || 'Activo').trim().toUpperCase();
+  if (active !== 'ACTIVO' && active !== 'SI') {
+    throw new Error('Este usuario esta inactivo. No se puede enviar codigo.');
+  }
+
+  var propertyKey = getPasswordResetPropertyKey_(username);
+  var existingRaw = PropertiesService.getScriptProperties().getProperty(propertyKey);
+  if (existingRaw) {
+    try {
+      var existing = JSON.parse(existingRaw);
+      if (Date.now() < Number(existing.createdAt || 0) + (3 * 60 * 1000)) {
+        throw new Error('Ya se solicito un codigo hace poco. Espera unos minutos antes de pedir otro.');
+      }
+    } catch (error) {
+      if (String(error.message || '').indexOf('Ya se solicito') === 0) throw error;
+    }
+  }
+
+  var code = String(Math.floor(100000 + Math.random() * 900000));
+  PropertiesService.getScriptProperties().setProperty(propertyKey, JSON.stringify({
+    codeHash: sha256Hex_(code),
+    createdAt: Date.now(),
+    expiresAt: Date.now() + (5 * 60 * 1000),
+    attempts: 0
+  }));
+
+  MailApp.sendEmail({
+    to: username,
+    name: 'NubeFarma POS',
+    subject: 'Tu codigo de recuperacion de NubeFarma POS',
+    body: 'Hola ' + String(getUserField_(match.user, ['Nombre', 'nombre', 'Name', 'name']) || username).trim() + ',\n\n'
+      + 'Tu codigo temporal de recuperacion es: ' + code + '\n\n'
+      + 'Vence en 5 minutos. Si no solicitaste este cambio, ignora este mensaje.\n\n'
+      + 'Por seguridad, no compartas este codigo con nadie.',
+    htmlBody: buildPasswordResetEmailHtml_(code, username, getUserField_(match.user, ['Nombre', 'nombre', 'Name', 'name']))
+  });
+
+  return {
+    ok: true,
+    action: 'request_password_reset',
+    message: 'Codigo temporal enviado al correo registrado.'
+  };
+}
+
+function confirmPasswordResetWeb_(payload) {
+  var username = String(payload.username || payload.usuario || '').trim().toLowerCase();
+  var code = String(payload.code || payload.codigo || '').trim();
+  var newPassword = String(payload.newPassword || payload.password || payload.contrasena || '').trim();
+  if (!username || !code || !newPassword) {
+    throw new Error('Correo, codigo y nueva contrasena son requeridos.');
+  }
+  if (!/@/.test(username)) {
+    throw new Error('Codigo invalido o vencido.');
+  }
+  if (!isStrongPasswordWeb_(newPassword)) {
+    throw new Error('La nueva contrasena debe tener minimo 10 caracteres, mayuscula, minuscula, numero y simbolo.');
+  }
+
+  var propertyKey = getPasswordResetPropertyKey_(username);
+  var raw = PropertiesService.getScriptProperties().getProperty(propertyKey);
+  if (!raw) throw new Error('Codigo invalido o vencido.');
+  var state = JSON.parse(raw);
+  if (Date.now() > Number(state.expiresAt || 0)) {
+    PropertiesService.getScriptProperties().deleteProperty(propertyKey);
+    throw new Error('Codigo invalido o vencido.');
+  }
+  if (Number(state.attempts || 0) >= 5) {
+    PropertiesService.getScriptProperties().deleteProperty(propertyKey);
+    throw new Error('Demasiados intentos con el codigo. Solicita uno nuevo.');
+  }
+  if (sha256Hex_(code) !== String(state.codeHash || '')) {
+    state.attempts = Number(state.attempts || 0) + 1;
+    PropertiesService.getScriptProperties().setProperty(propertyKey, JSON.stringify(state));
+    throw new Error('Codigo invalido o vencido.');
+  }
+
+  var sheet = getUsersSheet_();
+  var match = getUserRowByUsername_(sheet, username);
+  if (!match) throw new Error('Codigo invalido o vencido.');
+  sheet.getRange(match.rowIndex, 5).setValue(hashPasswordWeb_(newPassword));
+  PropertiesService.getScriptProperties().deleteProperty(propertyKey);
+  clearLoginFailureWeb_(username);
+  return {
+    ok: true,
+    action: 'confirm_password_reset',
+    message: 'Contrasena actualizada correctamente.'
+  };
+}
+
 function authenticateUser_(sheet, payload) {
   var username = String(payload.username || payload.usuario || '').trim().toLowerCase();
   var password = String(payload.password || payload.clave || '').trim();
@@ -1620,6 +1638,11 @@ function authenticateUser_(sheet, payload) {
   }
   if (!password) {
     throw new Error('La clave es obligatoria.');
+  }
+
+  var attemptState = getLoginAttemptState_(username);
+  if (attemptState.blockedUntil && Date.now() < attemptState.blockedUntil) {
+    throw new Error('Demasiados intentos fallidos. Espera 10 minutos antes de intentar de nuevo.');
   }
 
   var values = sheet.getDataRange().getValues();
@@ -1645,8 +1668,10 @@ function authenticateUser_(sheet, payload) {
 
     var passwordVerification = verifyPasswordWeb_(password, storedPassword);
     if (!passwordVerification.ok) {
+      registerLoginFailureWeb_(username);
       throw new Error('Clave incorrecta.');
     }
+    clearLoginFailureWeb_(username);
     if (passwordVerification.needsRehash) {
       sheet.getRange(rowIndex + 1, 5).setValue(hashPasswordWeb_(password));
     }
@@ -1913,70 +1938,11 @@ function appendSale_(sheet, sale) {
     createdAt,
     normalized.redeemedPoints,
     normalized.loyaltyDiscount,
-    normalized.earnedPoints,
-    normalized.deliveryStatus || (isDeliverySale_(normalized) ? 'pendiente' : ''),
-    normalized.deliveryUpdatedAt || (isDeliverySale_(normalized) ? createdAt : ''),
-    normalized.status || 'ACTIVA',
-    normalized.annulledAt || '',
-    normalized.annulledBy || '',
-    normalized.annulledReason || ''
+    normalized.earnedPoints
   ];
 
   sheet.appendRow(rowValues);
-  normalized.deliveryStatus = rowValues[17];
-  normalized.deliveryUpdatedAt = rowValues[18];
   return normalized;
-}
-
-function updateDeliveryOrderStatus_(sheet, saleRef, status) {
-  ensureSalesHeaders_(sheet);
-  var normalizedStatus = normalizeDeliveryStatus_(status);
-  if (!normalizedStatus) {
-    throw new Error('Estado de domicilio no valido.');
-  }
-
-  var reference = String(saleRef || '').trim();
-  if (!reference) {
-    throw new Error('No se recibio el id o numero del pedido.');
-  }
-
-  var values = sheet.getDataRange().getValues();
-  if (values.length < 2) {
-    throw new Error('No hay ventas registradas.');
-  }
-
-  var headers = values[0].map(function(header) {
-    return String(header).trim();
-  });
-  var idIndex = headers.indexOf('id');
-  var ticketIndex = headers.indexOf('ticket_numero');
-  var statusIndex = headers.indexOf('domicilio_estado');
-  var updatedAtIndex = headers.indexOf('domicilio_actualizado_en');
-
-  if (statusIndex === -1 || updatedAtIndex === -1) {
-    throw new Error('La hoja de ventas no tiene columnas de domicilio. Ejecuta setup o recarga el sistema.');
-  }
-
-  var foundRow = -1;
-  for (var i = 1; i < values.length; i += 1) {
-    var rowId = idIndex >= 0 ? String(values[i][idIndex] || '').trim() : '';
-    var rowTicket = ticketIndex >= 0 ? String(values[i][ticketIndex] || '').trim() : '';
-    if (rowId === reference || rowTicket === reference) {
-      foundRow = i + 1;
-      break;
-    }
-  }
-
-  if (foundRow < 0) {
-    throw new Error('No se encontro el pedido indicado.');
-  }
-
-  var updatedAt = new Date().toISOString();
-  sheet.getRange(foundRow, statusIndex + 1).setValue(normalizedStatus);
-  sheet.getRange(foundRow, updatedAtIndex + 1).setValue(updatedAt);
-
-  var rowValues = sheet.getRange(foundRow, 1, 1, headers.length).getValues()[0];
-  return normalizeStoredSale_(rowToItem_(headers, rowValues));
 }
 
 function appendWithdrawal_(sheet, withdrawal) {
@@ -2301,63 +2267,6 @@ function decrementStock_(sheet, items) {
   sheet.getRange(2, 1, values.length - 1, headers.length).setValues(values.slice(1));
 }
 
-function restoreSaleStock_(sheet, items) {
-  var values = sheet.getDataRange().getValues();
-  if (values.length < 2) {
-    throw new Error('La hoja no contiene productos para reponer stock.');
-  }
-
-  var headers = values[0].map(function(header) {
-    return String(header).trim();
-  });
-  var stockIndex = headers.indexOf('stock');
-  if (stockIndex === -1) {
-    throw new Error('No existe la columna "stock" en la hoja.');
-  }
-
-  var updates = items.map(function(item) {
-    return {
-      id: String(item.id || '').trim(),
-      sku: String(item.sku || '').trim(),
-      quantity: Number(item.quantity != null ? item.quantity : item.cantidad != null ? item.cantidad : item.stock != null ? item.stock : 0)
-    };
-  });
-
-  updates.forEach(function(update) {
-    if (!update.id && !update.sku) {
-      throw new Error('Cada item debe incluir id o sku para reponer stock.');
-    }
-    if (!isFinite(update.quantity) || update.quantity <= 0) {
-      throw new Error('La cantidad a reponer debe ser mayor que cero.');
-    }
-  });
-
-  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
-    var current = normalizeStoredItem_(rowToItem_(headers, values[rowIndex]));
-    var matchedUpdate = null;
-
-    for (var updateIndex = 0; updateIndex < updates.length; updateIndex += 1) {
-      var update = updates[updateIndex];
-      if ((update.id && current.id === update.id) || (update.sku && current.sku === update.sku)) {
-        matchedUpdate = update;
-        break;
-      }
-    }
-
-    if (!matchedUpdate) continue;
-    values[rowIndex][stockIndex] = current.stock + matchedUpdate.quantity;
-    matchedUpdate.applied = true;
-  }
-
-  updates.forEach(function(update) {
-    if (!update.applied) {
-      throw new Error('No se encontró el producto para reponer stock: ' + (update.sku || update.id));
-    }
-  });
-
-  sheet.getRange(2, 1, values.length - 1, headers.length).setValues(values.slice(1));
-}
-
 function receiveOrder_(sheet, items) {
   var values = sheet.getDataRange().getValues();
   var headers = values.length ? values[0].map(function(header) {
@@ -2554,13 +2463,13 @@ function getSpreadsheet_() {
   return spreadsheet;
 }
 
-function getOrCreateSheet_(sheetName, headers) {
+function getOrCreateSheet_(sheetName, headers, ensureFn) {
   var spreadsheet = getSpreadsheet_();
   var sheet = spreadsheet.getSheetByName(sheetName);
   if (!sheet) {
     sheet = spreadsheet.insertSheet(sheetName);
   }
-  ensureSimpleHeaders_(sheet, headers);
+  (ensureFn || ensureSimpleHeaders_)(sheet, headers);
   return sheet;
 }
 
@@ -2601,6 +2510,33 @@ function ensureSimpleHeaders_(sheet, headers) {
       throw new Error('La fila de encabezados no coincide con el formato esperado de ' + sheet.getName() + '.');
     }
   }
+}
+
+function ensureAuditLogHeaders_(sheet) {
+  var lastColumn = Math.max(sheet.getLastColumn(), AUDIT_LOG_HEADERS.length);
+  var existingHeaders = lastColumn ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0] : [];
+  var isEmptySheet = sheet.getLastRow() === 0;
+  if (isEmptySheet) {
+    sheet.getRange(1, 1, 1, AUDIT_LOG_HEADERS.length).setValues([AUDIT_LOG_HEADERS]);
+    return;
+  }
+
+  var legacyHeaders = ['id', 'modulo', 'accion', 'entity_id', 'entity_name', 'detalle', 'usuario', 'creado_en'];
+  var legacyMatches = true;
+  for (var i = 0; i < legacyHeaders.length; i += 1) {
+    if (normalizeHeaderKey_(existingHeaders[i]) !== normalizeHeaderKey_(legacyHeaders[i])) {
+      legacyMatches = false;
+      break;
+    }
+  }
+
+  if (legacyMatches) {
+    sheet.insertColumnBefore(8);
+    sheet.getRange(1, 8).setValue('usuario_login');
+    return;
+  }
+
+  ensureSimpleHeaders_(sheet, AUDIT_LOG_HEADERS);
 }
 
 function readSimpleItems_(sheet) {

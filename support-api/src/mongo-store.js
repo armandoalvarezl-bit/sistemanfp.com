@@ -10,6 +10,25 @@ function hashVariants(password) {
   ];
 }
 
+function hashPasswordSecure(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const iterations = 120000;
+  const hash = crypto.pbkdf2Sync(String(password || ''), salt, iterations, 32, 'sha256').toString('hex');
+  return `pbkdf2$${iterations}$${salt}$${hash}`;
+}
+
+function verifyPasswordSecure(password, storedPassword) {
+  const currentHash = trim(storedPassword);
+  if (!currentHash.startsWith('pbkdf2$')) return false;
+  const parts = currentHash.split('$');
+  if (parts.length !== 4) return false;
+  const iterations = Math.max(1, Number(parts[1] || 1));
+  const salt = parts[2];
+  const expected = Buffer.from(parts[3], 'hex');
+  const actual = crypto.pbkdf2Sync(String(password || ''), salt, iterations, expected.length, 'sha256');
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
+
 function trim(value) {
   return String(value || '').trim();
 }
@@ -136,7 +155,7 @@ async function createMongoStore({ uri, dbName, deviceId, deviceName }) {
     }
 
     const candidates = hashVariants(trim(password));
-    if (!candidates.includes(trim(user.password_hash))) {
+    if (!verifyPasswordSecure(password, user.password_hash) && !candidates.includes(trim(user.password_hash))) {
       return null;
     }
 
@@ -147,6 +166,25 @@ async function createMongoStore({ uri, dbName, deviceId, deviceName }) {
       name: trim(user.nombre || user.username),
       role: trim(user.rol || 'user').toLowerCase()
     };
+  }
+
+  async function findUserForPasswordReset(username) {
+    const normalized = trim(username).toLowerCase();
+    if (!normalized || !normalized.includes('@')) return null;
+    const user = await users.findOne({ username: normalized });
+    if (!user || trim(user.activo).toUpperCase() !== 'SI') return null;
+    return {
+      id: trim(user._id || user.id),
+      username: trim(user.username),
+      name: trim(user.nombre || user.username)
+    };
+  }
+
+  async function updateUserPassword(username, passwordHash) {
+    await users.updateOne(
+      { username: trim(username).toLowerCase() },
+      { $set: { password_hash: passwordHash || hashPasswordSecure('') } }
+    );
   }
 
   async function loadLicensingOverview() {
@@ -376,6 +414,8 @@ async function createMongoStore({ uri, dbName, deviceId, deviceName }) {
     ping,
     getLicense,
     authenticateUser,
+    findUserForPasswordReset,
+    updateUserPassword,
     loadLicensingOverview,
     saveCompany,
     saveLicense,

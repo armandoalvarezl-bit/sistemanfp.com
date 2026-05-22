@@ -1,160 +1,45 @@
+# Nueva Farma POS
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbx_4zP8LJcKvFpg_CtFTw8VfWdP-jBSABiRyJnxZ1V3Ix6MjuDmX9Pz6RL8Q2-7xUhP/exec">
-  <title>BellezaPOS Desktop | Ingreso</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="pos.css">
-</head>
-<body class="auth-body" data-login-scope="main">
-  <main class="auth-shell">
-    <section class="auth-stage">
-      <div class="auth-hero auth-hero-phone">
-        <div class="auth-phone-topbar">
-          <span class="auth-phone-search-icon"></span>
-        </div>
-        <div class="auth-phone-awning">
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-        <div class="auth-phone-body">
-          <div class="auth-phone-bag">
-            <span></span>
-            <span></span>
-          </div>
-        </div>
-      </div>
-      <div class="auth-hero auth-hero-card">
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
-      <div class="auth-hero auth-hero-ticket">
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
-      <div class="auth-hero auth-hero-tag">
-        <span>%</span>
-      </div>
-      <div class="auth-hero auth-hero-cart">
-        <div class="auth-cart-basket">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-        <div class="auth-cart-handle"></div>
-        <div class="auth-cart-wheel auth-cart-wheel-a"></div>
-        <div class="auth-cart-wheel auth-cart-wheel-b"></div>
-      </div>
-      <div class="auth-hero auth-hero-coins">
-        <span class="auth-coin auth-coin-main">$</span>
-        <span class="auth-coin auth-coin-stack auth-coin-stack-a"></span>
-        <span class="auth-coin auth-coin-stack auth-coin-stack-b"></span>
-      </div>
-    </section>
+Sistema POS para farmacias con frontend web, sincronizacion con Google Sheets por Apps Script, API local opcional con MongoDB y empaquetado de escritorio con Electron.
 
-    <section class="auth-card">
-      <div class="auth-card-frame">
-        <div class="auth-card-logo">
-          <img class="auth-card-logo-image" src="assets/logo-nubefarma-clean.png" alt="Logo Belleza POS">
-        </div>
+## Estructura
 
-        <div class="auth-card-intro">
-          <p class="section-kicker auth-kicker-center">Sistema de facturacion</p>
-          <p class="auth-welcome-line"><strong>Bienvenido</strong> Por favor inicia con tu cuenta de usuario.</p>
-        </div>
+- `pos.html`, `login-interno.html`, `dashboard.html` y paginas relacionadas: interfaz principal del sistema.
+- `auth.js`, `pos.js`, `farmapos-data.js` y `pos.css`: logica de autenticacion, POS, datos y estilos.
+- `assets/`: logos, iconos e imagenes usadas por el login, promociones y la app.
+- `apps-script-inventario.gs`: backend principal para Google Apps Script.
+- `google-apps-script/apps-script-inventario.gs`: copia organizada del script para publicar o respaldar.
+- `support-api/src/`: API local de soporte y persistencia con MongoDB.
+- `electron/main.js`: entrada de escritorio para abrir el POS como aplicacion.
+- `scripts/`: utilidades de validacion, instalacion, build y provision.
+- `docs/PROJECT-STRUCTURE.md`: mapa detallado de frontend, backend, scripts y Apps Script.
 
-        <div class="auth-info-panel auth-info-panel-compact">
-          <strong>Todo en un solo lugar</strong>
-          <ul class="auth-info-list">
-            <li>Ventas, inventario y reportes en una sola vista.</li>
-            <li>Acceso seguro con validacion de usuarios en linea.</li>
-          </ul>
-        </div>
+## Comandos
 
-        <div class="auth-card-top">
-          <div class="brand-box auth-brand">
-            <div><strong id="authBrandName">Belleza POS</strong><span>Acceso principal</span></div>
-          </div>
-          <div class="auth-card-chip">
-            <i class="bi bi-shield-check"></i>
-            <span>Validacion segura</span>
-          </div>
-        </div>
+```bash
+npm run validate
+npm run start:web-api
+npm start
+```
 
-        <div class="auth-head">
-          <h2>Iniciar sesion</h2>
-          <p>Ingresa con tu usuario autorizado para entrar al dashboard principal.</p>
-        </div>
+En Windows, si PowerShell bloquea `npm`, usa:
 
-        <div class="auth-access-switch">
-          <a class="auth-access-link" href="login-interno.html">
-            <i class="bi bi-person-badge"></i>
-            <span>Acceso interno BellezaPOS</span>
-          </a>
-        </div>
+```bash
+npm.cmd run validate
+```
 
-        <form id="loginForm" class="form-stack auth-form">
-          <div class="auth-form-caption">
-            <span></span>
-            <small>Ingreso protegido</small>
-          </div>
-          <div class="auth-form-panel">
-            <div class="auth-form-panel-head">
-              <strong>Credenciales</strong>
-              <span>Validacion de licencia y usuarios contra MariaDB</span>
-            </div>
+## Validacion
 
-            <div class="auth-form-fields">
-              <div class="form-field" id="loginLicenseField">
-                <label for="loginLicense">Licencia</label>
-                <input id="loginLicense" class="form-control" type="text" autocomplete="off" placeholder="Codigo de licencia activa">
-              </div>
-              <div class="form-field">
-                <label for="loginUsername">Usuario</label>
-                <input id="loginUsername" class="form-control" type="text" autocomplete="username" placeholder="Usuario" required>
-              </div>
-              <div class="form-field">
-                <label for="loginPassword">Contrasena</label>
-                <div class="auth-password-wrap">
-                  <input id="loginPassword" class="form-control" type="password" autocomplete="current-password" placeholder="Ingresa tu clave" required>
-                  <button class="icon-action auth-password-toggle" id="togglePassword" type="button" aria-label="Mostrar contrasena">
-                    <i class="bi bi-eye"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
+Antes de entregar cambios ejecuta:
 
-            <div class="auth-form-bottom">
-              <div class="auth-form-hint">
-                <i class="bi bi-shield-check"></i>
-                <span id="loginLicenseHint">Acceso seguro con licencia activa y usuario autorizado.</span>
-              </div>
-              <button class="btn btn-brand w-100 auth-submit" type="submit">Entrar al sistema</button>
-            </div>
-          </div>
-        </form>
-        <div class="auth-error" id="loginError" hidden></div>
-        <div class="auth-version" data-app-version>Version Desktop</div>
-      </div>
-    </section>
-  </main>
+```bash
+npm.cmd run validate
+```
 
-  <script src="auth.js"></script>
-</body>
-</html>
+Ese chequeo confirma que los archivos principales existen, que los enlaces locales de HTML apuntan a archivos reales y que los scripts JavaScript/Apps Script no tienen errores de sintaxis.
 
+## Configuracion
 
-
-
-
+- Usa `db.config.example.json` y `mongodb.config.example.json` como plantillas.
+- No publiques credenciales reales en archivos de ejemplo.
+- Si cambias `apps-script-inventario.gs`, mantén sincronizada la copia de `google-apps-script/` cuando corresponda.

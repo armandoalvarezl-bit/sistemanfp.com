@@ -1,0 +1,31 @@
+id,sku,nombre,categoria,precio,stock,lote,fecha_vencimiento,laboratorio,registro_invima,codigo_barras,descripcion,activo
+1,FP-001,Acetaminofen 500 mg,analgesico,8500,120,LT-001,2027-12-31,Genfar,INVIMA-2026M-000001,770000000001,Tabletas x 100 unidades,SI
+2,FP-002,Ibuprofeno 400 mg,analgesico,12400,80,LT-002,2027-11-15,Lafrancol,INVIMA-2026M-000002,770000000002,Capsulas x 50,SI
+3,FP-003,Vitamina C 1 g,vitamina,18900,150,LT-003,2028-01-20,MK,INVIMA-2026M-000003,770000000003,Tabletas efervescentes,SI
+4,FP-004,Protector solar FPS 50,cuidado,35900,40,LT-004,2027-09-10,Procaps,INVIMA-2026NS-000004,770000000004,Presentacion 120 ml,SI
+5,FP-005,Alcohol antiseptico,cuidado,6200,220,LT-005,2028-03-05,Quirumed,INVIMA-2026NS-000005,770000000005,Frasco 350 ml,SI
+6,FP-006,Multivitaminico adulto,vitamina,27400,60,LT-006,2027-08-22,Nutrapharm,INVIMA-2026M-000006,770000000006,Frasco x 60 capsulas,SI
+7,FP-007,Shampoo anticaspa,higiene,12900,75,LT-007,2029-05-10,Dermatek,INVIMA-2026NS-000007,770000000007,250 ml,SI
+8,FP-008,Crema hidratante facial,dermocosmetico,45900,38,LT-008,2028-07-30,BeautiLab,INVIMA-2026NS-000008,770000000008,50 ml,SI
+9,FP-009,Toallas humedas 72 un,higiene,9800,140,LT-009,2029-02-14,FreshCare,INVIMA-2026NS-000009,770000000009,Paquete 72 unidades,SI
+10,FP-010,Leche infantil 800 g,bebe,45900,50,LT-010,2026-12-01,Nestito,INVIMA-2026M-000010,770000000010,Polvo x 800g,SI
+11,FP-011,Pañales talla M,bebe,32900,200,LT-011,2029-09-01,BabySoft,INVIMA-2026NS-000011,770000000011,Pack 36 unidades,SI
+12,FP-012,Termometro digital,hogar,21900,34,LT-012,2030-01-01,MedTech,INVIMA-2026NS-000012,770000000012,Digital infrarrojo,SI
+13,FP-013,Crema para hemorroides,cuidado,14900,55,LT-013,2027-06-20,ProRelief,INVIMA-2026NS-000013,770000000013,Crema 30 g,SI
+14,FP-014,Jarabe para la tos 120 ml,respiratorio,9900,68,LT-014,2026-10-15,CoughFree,INVIMA-2026M-000014,770000000014,Jarabe 120 ml,SI
+15,FP-015,Antiacido masticable,estomacal,7200,90,LT-015,2028-04-10,StomiCare,INVIMA-2026M-000015,770000000015,Tabletas masticables x 20,SI
+16,FP-016,Ampolla suero 10 ml,parafarmacia,3100,500,LT-016,2031-11-30,MedSupply,INVIMA-2026NS-000016,770000000016,Ampolla x 10 ml,SI
+17,FP-017,Suero oral 1 L,hidratacion,7200,120,LT-017,2029-03-22,HydraPlus,INVIMA-2026NS-000017,770000000017,Botella 1 litro,SI
+18,FP-018,Antiséptico povidona 10%,cuidado,8100,95,LT-018,2028-08-08,SterilCorp,INVIMA-2026NS-000018,770000000018,Frasco 250 ml,SI
+19,FP-019,Crema antiarrugas,dermocosmetico,67900,27,LT-019,2028-12-31,YouthLab,INVIMA-2026NS-000019,770000000019,50 ml,SI
+20,FP-020,Proteina en polvo 1kg,nutricion,89900,44,LT-020,2027-05-05,PowerNutrition,INVIMA-2026NS-000020,770000000020,Polvo 1 kg,SI
+21,FP-021,Batido energetico 330 ml,bebida,4200,180,LT-021,2026-11-11,EnerDrink,INVIMA-2026NS-000021,770000000021,Bebida energetica,SI
+22,FP-022,Glucometro y tiras,dispositivo,129900,22,LT-022,2030-06-10,HealthWays,INVIMA-2026NS-000022,770000000022,Glucometro + 10 tiras,SI
+23,FP-023,Cinta elastica 5m,rehabilitacion,8900,64,LT-023,2032-01-01,FlexiFit,INVIMA-2026NS-000023,770000000023,Cinta elastica 5 metros,SI
+24,FP-024,Lentes de lectura +1.5,optica,12900,48,LT-024,2035-12-31,ClearView,INVIMA-2026NS-000024,770000000024,Par lentes lectura,SI
+25,FP-025,Detergente liquido 1L,limpieza,7200,160,LT-025,2029-07-07,HouseClean,INVIMA-2026NS-000025,770000000025,Botella 1 litro,SI
+26,FP-026,Mascarilla N95 (caja 20),proteccion,45900,90,LT-026,2031-04-01,SafeMask,INVIMA-2026NS-000026,770000000026,Caja x 20 unidades,SI
+27,FP-027,Venda acolchada 10 cm,firstaid,6200,140,LT-027,2030-09-15,FirstAidCo,INVIMA-2026NS-000027,770000000027,Venda 10 cm x 4 m,SI
+28,FP-028,Antigripal capsulas,respiratorio,13900,75,LT-028,2027-02-28,ReliefPharm,INVIMA-2026M-000028,770000000028,Capsulas x 20,SI
+29,FP-029,Spray nasal 15 ml,respiratorio,7400,88,LT-029,2028-05-05,NasoCare,INVIMA-2026NS-000029,770000000029,Spray 15 ml,SI
+30,FP-030,Termo para alimentos 500 ml,hogar,16900,52,LT-030,2033-10-10,KitchenPro,INVIMA-2026NS-000030,770000000030,Termo acero inoxidable 500 ml,SI

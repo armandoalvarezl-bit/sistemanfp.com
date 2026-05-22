@@ -31,8 +31,8 @@ const WEB_DB_API_STORAGE_KEY = "farmapos_web_db_api_url";
 const DAILY_WELCOME_STORAGE_KEY = "farmapos_daily_welcome_seen";
 const SESSION_WELCOME_STORAGE_KEY = "farmapos_session_welcome_seen";
 const DASHBOARD_LAUNCH_BANNER_STORAGE_KEY = "farmapos_dashboard_launch_banner_seen_v1";
-const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbwrVF471WgB-BigQZGYcF3LvqhjPRr1W6UGCF6VOGnEqrmC7WlaAVM_mJOTURfMs4MOzw/exec";
-const API_URL = "https://script.google.com/macros/s/AKfycbwrVF471WgB-BigQZGYcF3LvqhjPRr1W6UGCF6VOGnEqrmC7WlaAVM_mJOTURfMs4MOzw/exec";
+const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycby36Qa2zAAwPYRfKKMqoIwV0RRvICzGtbiWt0rl2PeDZjxNTEtnhVVnLimO1jZBPgbt5Q/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycby36Qa2zAAwPYRfKKMqoIwV0RRvICzGtbiWt0rl2PeDZjxNTEtnhVVnLimO1jZBPgbt5Q/exec";
 const desktopDb = window.farmaposDesktop?.db || null;
 const ONLINE_EXCEL_ONLY = true;
 const browserStorage = window.sessionStorage;
@@ -634,7 +634,7 @@ function normalizePharmacyProfile(profile) {
     address: String(profile?.address || base.address).trim(),
     city: String(profile?.city || base.city).trim(),
     manager: String(profile?.manager || base.manager).trim(),
-    logoUrl: String(profile?.logoUrl || profile?.logo_url || base.logoUrl).trim()
+    logoUrl: normalizeImageSource(profile?.logoUrl || profile?.logo_url || base.logoUrl)
   };
 }
 
@@ -934,8 +934,8 @@ function applyRemotePharmacyProfile(profile) {
 
 function applyImageSourceWithFallback(imageNode, preferredSrc, fallbackSrc, altText) {
   if (!imageNode) return;
-  const safePreferredSrc = String(preferredSrc || "").trim();
-  const safeFallbackSrc = String(fallbackSrc || "").trim() || DEFAULT_BRAND_LOGO;
+  const safePreferredSrc = normalizeImageSource(preferredSrc);
+  const safeFallbackSrc = normalizeImageSource(fallbackSrc) || DEFAULT_BRAND_LOGO;
   imageNode.dataset.logoFallback = safeFallbackSrc;
   imageNode.onerror = () => {
     if (imageNode.src !== safeFallbackSrc) {
@@ -1087,16 +1087,21 @@ function ensureFeedbackUi() {
     <div class="app-feedback-modal" id="appFeedbackModal" hidden>
       <div class="app-feedback-backdrop" data-close-dialog></div>
       <div class="app-feedback-card" role="dialog" aria-modal="true" aria-labelledby="appFeedbackTitle">
-        <div class="app-feedback-icon" id="appFeedbackIcon">
-          <i class="bi bi-info-circle"></i>
-        </div>
-        <div class="app-feedback-copy">
-          <h3 id="appFeedbackTitle">Aviso</h3>
-          <p id="appFeedbackMessage"></p>
+        <div class="app-feedback-media">
+          <div class="app-feedback-icon-box" id="appFeedbackIcon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" fill="#FCEAEA"></circle>
+              <path d="M8 8l8 8M16 8l-8 8" stroke="#B42318" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="app-feedback-copy">
+            <h3 id="appFeedbackTitle">Aviso</h3>
+            <p id="appFeedbackMessage"></p>
+          </div>
         </div>
         <div class="app-feedback-actions">
           <button type="button" class="btn btn-outline-secondary" id="appFeedbackCancel">Cancelar</button>
-          <button type="button" class="btn btn-brand" id="appFeedbackConfirm">Aceptar</button>
+          <button type="button" class="btn btn-brand btn-confirm" id="appFeedbackConfirm">Aceptar</button>
         </div>
       </div>
     </div>
@@ -1397,12 +1402,66 @@ function playElegantWelcomeTone() {
   }
 }
 
-function playSupportTicketTone() {
+const supportAudioState = {
+  context: null,
+  unlocked: false,
+  unlockBound: false
+};
+
+function getSupportAudioContext() {
   const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextCtor) return;
+  if (!AudioContextCtor) return null;
 
   try {
-    const context = new AudioContextCtor();
+    if (!supportAudioState.context || supportAudioState.context.state === "closed") {
+      supportAudioState.context = new AudioContextCtor();
+    }
+    return supportAudioState.context;
+  } catch {
+    return null;
+  }
+}
+
+function unlockSupportNotificationAudio() {
+  const context = getSupportAudioContext();
+  if (!context) return;
+
+  try {
+    if (context.state === "suspended") {
+      context.resume().catch(() => {});
+    }
+
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const now = context.currentTime;
+    oscillator.frequency.setValueAtTime(440, now);
+    gain.gain.setValueAtTime(0.0001, now);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(now);
+    oscillator.stop(now + 0.02);
+    supportAudioState.unlocked = true;
+  } catch {
+    // El permiso de audio se intentara de nuevo en la siguiente interaccion.
+  }
+}
+
+function bindSupportAudioUnlock() {
+  if (supportAudioState.unlockBound) return;
+  supportAudioState.unlockBound = true;
+  ["pointerdown", "keydown", "touchstart"].forEach((eventName) => {
+    window.addEventListener(eventName, unlockSupportNotificationAudio, { passive: true });
+  });
+}
+
+function playSupportTicketTone() {
+  const context = getSupportAudioContext();
+  if (!context) return;
+
+  try {
+    if (context.state === "suspended") {
+      context.resume().catch(() => {});
+    }
     const now = context.currentTime;
     const master = context.createGain();
     master.gain.setValueAtTime(0.0001, now);
@@ -1431,7 +1490,6 @@ function playSupportTicketTone() {
 
     master.gain.exponentialRampToValueAtTime(0.07, now + 0.04);
     master.gain.exponentialRampToValueAtTime(0.0001, now + 0.72);
-    window.setTimeout(() => context.close().catch(() => {}), 900);
   } catch {
     // Si el navegador bloquea el audio, mantenemos la notificacion visual.
   }
@@ -1613,6 +1671,17 @@ async function withLoading(task, options) {
   }
 }
 
+function setCheckoutLoading(active) {
+  const button = document.getElementById("checkoutSale");
+  if (!button) return;
+  button.disabled = active;
+  button.classList.toggle("loading", active);
+  const label = button.querySelector(".sales-charge-label");
+  if (label) {
+    label.textContent = active ? "Procesando..." : "Cobrar";
+  }
+}
+
 function normalizeInputDateValue(value) {
   if (!value) return "";
   const text = String(value).trim();
@@ -1665,12 +1734,27 @@ function getSaleTicketSequence(ticketNumber) {
 
 function generateSaleTicketNumber(dateValue = new Date(), sales = state.sales) {
   const dateCode = getTicketDateCode(dateValue);
+  const shortDateCode = dateCode.slice(2);
   const matchingSequences = (Array.isArray(sales) ? sales : [])
-    .filter((sale) => String(sale?.ticketNumber || "").includes(dateCode))
+    .filter((sale) => {
+      const ticketText = String(sale?.ticketNumber || "");
+      return ticketText.includes(dateCode) || ticketText.includes(shortDateCode);
+    })
     .map((sale) => getSaleTicketSequence(sale?.ticketNumber))
     .filter((sequence) => sequence > 0);
   const nextSequence = matchingSequences.length ? Math.max(...matchingSequences) + 1 : 1;
-  return `FAC-${dateCode}-${String(nextSequence).padStart(6, "0")}`;
+  return `T-${shortDateCode}-${String(nextSequence).padStart(3, "0")}`;
+}
+
+function formatTicketNumberForReceipt(ticketNumber) {
+  const text = String(ticketNumber || "").trim();
+  const legacyMatch = text.match(/^FAC-(\d{8})-(\d+)$/i);
+  if (legacyMatch) {
+    const shortDateCode = legacyMatch[1].slice(2);
+    const sequence = String(Number(legacyMatch[2]) || 1).padStart(3, "0");
+    return `T-${shortDateCode}-${sequence}`;
+  }
+  return text;
 }
 
 function getExpirationMeta(item) {
@@ -1776,8 +1860,18 @@ function normalizeCategory(category) {
   if (value.includes("frag") || value.includes("perf") || value.includes("aroma")) return "fragancias";
   if (value.includes("analg")) return "analgesico";
   if (value.includes("vit")) return "vitamina";
-  if (value.includes("cuid")) return "cuidado";
-  if (value.includes("derm")) return "cuidado";
+  if (value.includes("cuid") || value.includes("derm")) return "cuidado";
+  if (value.includes("hig") || value.includes("sanit")) return "higiene";
+  if (value.includes("beb") || value.includes("baby") || value.includes("nene") || value.includes("bebe")) return "bebe";
+  if (value.includes("hog") || value.includes("casa")) return "hogar";
+  if (value.includes("nutri") || value.includes("prote") || value.includes("proteina")) return "nutricion";
+  if (value.includes("bebida") || value.includes("drink") || value.includes("ener") || value.includes("refresco")) return "bebida";
+  if (value.includes("disp") || value.includes("glucom") || value.includes("termomet") || value.includes("dator") || value.includes("dispositivo")) return "dispositivo";
+  if (value.includes("rehab") || value.includes("venda") || value.includes("elastic") || value.includes("bandaid") || value.includes("primeros")) return "rehabilitacion";
+  if (value.includes("optic") || value.includes("lente") || value.includes("ojo") || value.includes("optica")) return "optica";
+  if (value.includes("limpie") || value.includes("deterg") || value.includes("desinfect") || value.includes("limpieza")) return "limpieza";
+  if (value.includes("mascar") || value.includes("n95") || value.includes("protec") || value.includes("shield") || value.includes("mask")) return "proteccion";
+  if (value.includes("respir") || value.includes("tos") || value.includes("nasal") || value.includes("gripe")) return "respiratorio";
   return value || "general";
 }
 
@@ -1790,6 +1884,17 @@ function getCategoryLabel(category) {
     analgesico: "Analgésicos",
     vitamina: "Vitaminas",
     cuidado: "Cuidado",
+    higiene: "Higiene",
+    bebe: "Bebé",
+    hogar: "Hogar",
+    nutricion: "Nutrición",
+    bebida: "Bebida",
+    dispositivo: "Dispositivo",
+    rehabilitacion: "Rehabilitación",
+    optica: "Óptica",
+    limpieza: "Limpieza",
+    proteccion: "Protección",
+    respiratorio: "Respiratorio",
     general: "General"
   };
   return labels[category] || category;
@@ -1804,13 +1909,33 @@ function getProductIcon(category) {
     analgesico: "bi-capsule-pill",
     vitamina: "bi-heart-pulse",
     cuidado: "bi-bandaid",
+    higiene: "bi-shower",
+    bebe: "bi-baby",
+    hogar: "bi-house",
+    nutricion: "bi-basket",
+    bebida: "bi-cup-straw",
+    dispositivo: "bi-patch-check",
+    rehabilitacion: "bi-bandage",
+    optica: "bi-eyeglasses",
+    limpieza: "bi-bucket",
+    proteccion: "bi-shield-lock",
+    respiratorio: "bi-cloud",
     general: "bi-box-seam"
   };
   return icons[category] || icons.general;
 }
 
+function normalizeImageSource(value) {
+  const source = String(value || "").trim();
+  if (!source) return "";
+  if (/^file:\/\//i.test(source)) return "";
+  if (/^[a-z]:[\\/]/i.test(source)) return "";
+  if (/^\\\\/.test(source)) return "";
+  return source;
+}
+
 function normalizeInventoryImage(value) {
-  return String(value || "").trim();
+  return normalizeImageSource(value);
 }
 
 function getInventoryImageSrc(item) {
@@ -2143,6 +2268,8 @@ const state = {
   supportUnreadCompanyTotal: 0,
   supportUnreadInternalTotal: 0,
   supportLastUnreadTotal: 0,
+  supportLastThreadTicketId: "",
+  supportLastThreadSignature: "",
   supportLoaded: false,
   supportLoading: false,
   supportError: "",
@@ -2764,6 +2891,11 @@ function renderSessionInfo() {
   });
 
   document.getElementById("logoutButton")?.addEventListener("click", () => {
+    const modal = document.getElementById("logoutModal");
+    if (modal) {
+      openLogoutModal();
+      return;
+    }
     browserStorage.removeItem(STORAGE_KEYS.session);
     window.location.href = "pos.html";
   });
@@ -3426,7 +3558,7 @@ function getSalesPeriodMeta(period) {
   if (period === "year") {
     return {
       key: "year",
-      label: "Ventas del ano",
+      label: "Ventas del año",
       rangeLabel: currentYear,
       filter: (sale) => normalizeInputDateValue(sale.date).slice(0, 4) === currentYear
     };
@@ -3434,7 +3566,7 @@ function getSalesPeriodMeta(period) {
 
   return {
     key: "day",
-    label: "Ventas del dia",
+    label: "Ventas del día",
     rangeLabel: formatDisplayDate(today),
     filter: (sale) => normalizeInputDateValue(sale.date) === today
   };
@@ -3455,7 +3587,21 @@ function buildSalesReportModel(period = state.reportPeriod || "day") {
     total: sales.filter((sale) => sale.paymentMethod === method).reduce((sum, sale) => sum + sale.total, 0)
   }));
 
-  return { meta, sales, totals, paymentSummary };
+  const productSummary = new Map();
+  sales.forEach((sale) => {
+    sale.items.forEach((item) => {
+      const key = item.id || item.name;
+      const current = productSummary.get(key) || { name: item.name, units: 0, revenue: 0 };
+      current.units += Number(item.quantity || 0);
+      current.revenue += Number(item.lineTotal || item.price * item.quantity || 0);
+      productSummary.set(key, current);
+    });
+  });
+  const topProducts = Array.from(productSummary.values())
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
+
+  return { meta, sales, totals, paymentSummary, topProducts };
 }
 
 function buildSalesReportHtml(period = state.reportPeriod || "day") {
@@ -3483,11 +3629,27 @@ function buildSalesReportHtml(period = state.reportPeriod || "day") {
       <div class="report-breakdown-row">
         <span>${escapeHtml(entry.method)}</span>
         <strong>${formatCurrency(entry.total)}</strong>
+        <i style="--bar:${report.totals.revenue ? Math.round((entry.total / report.totals.revenue) * 100) : 0}%"></i>
       </div>
     `).join("");
+  const topProductRows = report.topProducts.length
+    ? report.topProducts.map((item, index) => `
+      <div class="report-product-row">
+        <span>${index + 1}</span>
+        <strong>${escapeHtml(item.name)}</strong>
+        <em>${item.units} und.</em>
+        <b>${formatCurrency(item.revenue)}</b>
+      </div>
+    `).join("")
+    : `<div class="report-empty-note">Aún no hay productos vendidos en este periodo.</div>`;
 
   return `
     <section class="sales-report-sheet">
+      <div class="sales-report-watermark">VENTAS</div>
+      <div class="sales-report-ribbon">
+        <span>Reporte comercial</span>
+        <strong>${escapeHtml(report.meta.rangeLabel)}</strong>
+      </div>
       <header class="sales-report-head sales-report-doc-head">
         <div class="sales-report-doc-brand">
           ${logoBlock}
@@ -3512,15 +3674,21 @@ function buildSalesReportHtml(period = state.reportPeriod || "day") {
       </header>
 
       <section class="sales-report-summary">
-        <article><span>Ingresos</span><strong>${formatCurrency(report.totals.revenue)}</strong></article>
-        <article><span>Transacciones</span><strong>${report.totals.transactions}</strong></article>
-        <article><span>Unidades</span><strong>${report.totals.units}</strong></article>
-        <article><span>Promedio</span><strong>${formatCurrency(report.totals.average)}</strong></article>
+        <article class="is-primary"><span>Ingresos netos</span><strong>${formatCurrency(report.totals.revenue)}</strong><small>Ventas activas del periodo</small></article>
+        <article><span>Transacciones</span><strong>${report.totals.transactions}</strong><small>Tickets facturados</small></article>
+        <article><span>Unidades</span><strong>${report.totals.units}</strong><small>Productos vendidos</small></article>
+        <article><span>Ticket promedio</span><strong>${formatCurrency(report.totals.average)}</strong><small>Promedio por venta</small></article>
       </section>
 
-      <section class="sales-report-breakdown">
-        <div class="sales-report-section-title">Metodo de pago</div>
-        ${paymentRows}
+      <section class="sales-report-insights">
+        <article class="sales-report-breakdown">
+          <div class="sales-report-section-title">Método de pago</div>
+          ${paymentRows}
+        </article>
+        <article class="sales-report-products">
+          <div class="sales-report-section-title">Productos destacados</div>
+          ${topProductRows}
+        </article>
       </section>
 
       <section class="sales-report-table-wrap">
@@ -3540,6 +3708,30 @@ function buildSalesReportHtml(period = state.reportPeriod || "day") {
           <tbody>${salesRows}</tbody>
         </table>
       </section>
+
+      <section class="sales-report-signatures">
+        <div class="sales-report-signature">
+          <span></span>
+          <strong>Coordinador de ventas</strong>
+          <small>Firma y aprobación</small>
+        </div>
+        <div class="sales-report-signature">
+          <span></span>
+          <strong>Supervisor que recibe</strong>
+          <small>Firma y recibido conforme</small>
+        </div>
+      </section>
+
+      <footer class="sales-report-footer">
+        <div>
+          <strong>${escapeHtml(pharmacy.name || "Sistema Facturacion")}</strong>
+          <span>Reporte generado automáticamente por BellezaPOS</span>
+        </div>
+        <div>
+          <span>${escapeHtml(formatSessionDateTime(new Date().toISOString()))}</span>
+          <span>Documento interno de control comercial</span>
+        </div>
+      </footer>
     </section>
   `;
 }
@@ -3776,6 +3968,229 @@ function buildCashClosureHtml(closure) {
   `;
 }
 
+function getCurrentMonthKey() {
+  return normalizeInputDateValue(new Date()).slice(0, 7);
+}
+
+function getMonthClosureInputValue() {
+  return document.getElementById("monthClosureInput")?.value || getCurrentMonthKey();
+}
+
+function isDateInMonth(dateValue, monthKey) {
+  return normalizeInputDateValue(dateValue).slice(0, 7) === monthKey;
+}
+
+function getMonthLabel(monthKey) {
+  const [year, month] = String(monthKey || getCurrentMonthKey()).split("-").map(Number);
+  const date = new Date(year || new Date().getFullYear(), Math.max(0, (month || 1) - 1), 1);
+  return date.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+}
+
+function buildMonthClosureModel(monthKey = getCurrentMonthKey()) {
+  const normalizedMonth = String(monthKey || getCurrentMonthKey()).slice(0, 7);
+  const sales = getActiveSales().filter((sale) => isDateInMonth(sale.date, normalizedMonth));
+  const annulledSales = state.sales.filter((sale) => sale.status === "ANULADA" && isDateInMonth(sale.date, normalizedMonth));
+  const purchases = state.purchases.filter((purchase) => isDateInMonth(purchase.date, normalizedMonth));
+  const returns = state.returns.filter((entry) => isDateInMonth(entry.date, normalizedMonth));
+  const withdrawals = state.cashWithdrawals.filter((withdrawal) => isDateInMonth(withdrawal.date, normalizedMonth));
+  const closures = state.cashClosures.map(normalizeCashClosureRecord).filter((closure) => isDateInMonth(closure.date, normalizedMonth));
+  const paymentMethods = ["Efectivo", "Tarjeta", "Transferencia"].map((method) => ({
+    method,
+    total: sales.filter((sale) => sale.paymentMethod === method).reduce((sum, sale) => sum + Number(sale.total || 0), 0),
+    count: sales.filter((sale) => sale.paymentMethod === method).length
+  }));
+  const categoryMap = new Map();
+  const productMap = new Map();
+
+  sales.forEach((sale) => {
+    sale.items.forEach((item) => {
+      const inventoryItem = state.inventory.find((entry) => entry.id === item.id);
+      const category = inventoryItem?.category || item.category || "general";
+      const quantity = Number(item.quantity || 0);
+      const total = Number(item.lineTotal || item.price * item.quantity || 0);
+      const categoryRow = categoryMap.get(category) || { category, units: 0, total: 0 };
+      categoryRow.units += quantity;
+      categoryRow.total += total;
+      categoryMap.set(category, categoryRow);
+      const productKey = item.id || item.name;
+      const productRow = productMap.get(productKey) || { name: item.name, units: 0, total: 0 };
+      productRow.units += quantity;
+      productRow.total += total;
+      productMap.set(productKey, productRow);
+    });
+  });
+
+  const inventoryValue = state.inventory.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.stock || 0), 0);
+  const stockUnits = state.inventory.reduce((sum, item) => sum + Number(item.stock || 0), 0);
+  const lowStock = state.inventory.filter((item) => Number(item.stock || 0) > 0 && Number(item.stock || 0) <= 10).length;
+  const outStock = state.inventory.filter((item) => Number(item.stock || 0) === 0).length;
+  const purchaseTotal = purchases.reduce((sum, purchase) => sum + Number(purchase.total || 0), 0);
+  const purchaseUnits = purchases.reduce((sum, purchase) => sum + Number(purchase.quantity || 0), 0);
+  const returnTotal = returns.reduce((sum, entry) => sum + Number(entry.total || 0), 0);
+  const returnUnits = returns.reduce((sum, entry) => sum + Number(entry.quantity || 0), 0);
+  const withdrawalTotal = withdrawals.reduce((sum, withdrawal) => sum + Number(withdrawal.amount || 0), 0);
+  const closureDifference = closures.reduce((sum, closure) => sum + Number(closure.difference || 0), 0);
+  const revenue = sales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
+  const subtotal = sales.reduce((sum, sale) => sum + Number(sale.subtotal || 0), 0);
+  const tax = sales.reduce((sum, sale) => sum + Number(sale.tax || 0), 0);
+  const discounts = sales.reduce((sum, sale) => sum + Number(sale.promoDiscount || 0) + Number(sale.loyaltyDiscount || 0), 0);
+  const units = sales.reduce((sum, sale) => sum + sale.items.reduce((acc, item) => acc + Number(item.quantity || 0), 0), 0);
+  const risks = [
+    outStock ? `${outStock} producto(s) agotados al cierre.` : "",
+    lowStock ? `${lowStock} producto(s) con stock bajo.` : "",
+    closureDifference ? `Diferencia acumulada de caja: ${formatCurrency(closureDifference)}.` : "",
+    !closures.length ? "No hay cierres diarios guardados para este mes." : "",
+    annulledSales.length ? `${annulledSales.length} venta(s) anuladas durante el mes.` : ""
+  ].filter(Boolean);
+
+  return {
+    key: normalizedMonth,
+    label: getMonthLabel(normalizedMonth),
+    generatedAt: new Date().toISOString(),
+    sales,
+    annulledSales,
+    purchases,
+    returns,
+    withdrawals,
+    closures,
+    paymentMethods,
+    categories: Array.from(categoryMap.values()).sort((a, b) => b.total - a.total),
+    topProducts: Array.from(productMap.values()).sort((a, b) => b.total - a.total).slice(0, 6),
+    revenue,
+    subtotal,
+    tax,
+    discounts,
+    units,
+    transactions: sales.length,
+    average: sales.length ? Math.round(revenue / sales.length) : 0,
+    purchaseTotal,
+    purchaseUnits,
+    returnTotal,
+    returnUnits,
+    withdrawalTotal,
+    closureDifference,
+    inventoryValue,
+    stockUnits,
+    activeProducts: state.inventory.filter((item) => item.active !== "NO").length,
+    lowStock,
+    outStock,
+    netAfterPurchases: revenue - purchaseTotal,
+    risks
+  };
+}
+
+function buildMonthClosureHtml(model) {
+  const pharmacy = normalizePharmacyProfile(state.pharmacyProfile);
+  const paymentRows = model.paymentMethods.map((entry) => `
+    <div class="month-close-row">
+      <span>${escapeHtml(entry.method)}</span>
+      <strong>${formatCurrency(entry.total)}</strong>
+      <small>${entry.count} transacciones</small>
+    </div>
+  `).join("");
+  const categoryRows = model.categories.length
+    ? model.categories.slice(0, 8).map((entry) => `
+      <tr>
+        <td>${escapeHtml(getCategoryLabel(entry.category))}</td>
+        <td>${entry.units}</td>
+        <td>${formatCurrency(entry.total)}</td>
+      </tr>
+    `).join("")
+    : `<tr><td colspan="3">Sin ventas por categoria en el periodo.</td></tr>`;
+  const productRows = model.topProducts.length
+    ? model.topProducts.map((item, index) => `
+      <div class="month-close-product">
+        <span>${index + 1}</span>
+        <strong>${escapeHtml(item.name)}</strong>
+        <small>${item.units} und.</small>
+        <b>${formatCurrency(item.total)}</b>
+      </div>
+    `).join("")
+    : `<div class="month-close-empty">Sin productos vendidos en este mes.</div>`;
+  const riskRows = model.risks.length
+    ? model.risks.map((risk) => `<li>${escapeHtml(risk)}</li>`).join("")
+    : `<li>Sin alertas críticas para el cierre seleccionado.</li>`;
+
+  return `
+    <section class="month-close-sheet">
+      <div class="month-close-watermark">CIERRE</div>
+      <div class="month-close-ribbon"><span>Cierre corporativo mensual</span><strong>${escapeHtml(model.label)}</strong></div>
+      <header class="month-close-head">
+        <div>
+          <p>${escapeHtml(pharmacy.name || "Sistema Facturacion")}</p>
+          <h3>Cierre de mes</h3>
+          <span>${escapeHtml(pharmacy.nit ? `NIT: ${pharmacy.nit}` : "Documento interno de control")}</span>
+        </div>
+        <div>
+          <span>Generado</span>
+          <strong>${escapeHtml(formatSessionDateTime(model.generatedAt))}</strong>
+          <small>${escapeHtml(sessionState.user || "Administrador")}</small>
+        </div>
+      </header>
+
+      <section class="month-close-summary">
+        <article class="is-primary"><span>Venta neta</span><strong>${formatCurrency(model.revenue)}</strong><small>${model.transactions} tickets</small></article>
+        <article><span>Compras</span><strong>${formatCurrency(model.purchaseTotal)}</strong><small>${model.purchaseUnits} unidades entrantes</small></article>
+        <article><span>Inventario</span><strong>${formatCurrency(model.inventoryValue)}</strong><small>${model.stockUnits} unidades en stock</small></article>
+        <article><span>Caja</span><strong>${formatCurrency(model.closureDifference)}</strong><small>Diferencia acumulada</small></article>
+      </section>
+
+      <section class="month-close-ledger">
+        <article>
+          <div class="month-close-section-title">Relación financiera</div>
+          <div class="month-close-row"><span>Subtotal vendido</span><strong>${formatCurrency(model.subtotal)}</strong><small>Antes de impuestos/descuentos</small></div>
+          <div class="month-close-row"><span>Impuestos</span><strong>${formatCurrency(model.tax)}</strong><small>IVA registrado</small></div>
+          <div class="month-close-row"><span>Descuentos</span><strong>${formatCurrency(model.discounts)}</strong><small>Promociones y puntos</small></div>
+          <div class="month-close-row"><span>Devoluciones</span><strong>${formatCurrency(model.returnTotal)}</strong><small>${model.returnUnits} unidades</small></div>
+          <div class="month-close-row"><span>Retiros de caja</span><strong>${formatCurrency(model.withdrawalTotal)}</strong><small>${model.withdrawals.length} retiros</small></div>
+        </article>
+        <article>
+          <div class="month-close-section-title">Métodos de pago</div>
+          ${paymentRows}
+        </article>
+      </section>
+
+      <section class="month-close-ledger">
+        <article>
+          <div class="month-close-section-title">Productos destacados</div>
+          ${productRows}
+        </article>
+        <article>
+          <div class="month-close-section-title">Control de inventario</div>
+          <div class="month-close-row"><span>Productos activos</span><strong>${model.activeProducts}</strong><small>Referencias disponibles</small></div>
+          <div class="month-close-row"><span>Stock bajo</span><strong>${model.lowStock}</strong><small>Requieren reposición</small></div>
+          <div class="month-close-row"><span>Agotados</span><strong>${model.outStock}</strong><small>No disponibles</small></div>
+          <div class="month-close-row"><span>Margen operativo simple</span><strong>${formatCurrency(model.netAfterPurchases)}</strong><small>Ventas - compras</small></div>
+        </article>
+      </section>
+
+      <section class="month-close-table-wrap">
+        <div class="month-close-section-title">Ventas por categoría</div>
+        <table class="month-close-table">
+          <thead><tr><th>Categoría</th><th>Unidades</th><th>Total</th></tr></thead>
+          <tbody>${categoryRows}</tbody>
+        </table>
+      </section>
+
+      <section class="month-close-audit">
+        <div class="month-close-section-title">Observaciones de auditoría</div>
+        <ul>${riskRows}</ul>
+      </section>
+
+      <section class="month-close-signatures">
+        <div><span></span><strong>Coordinador de ventas</strong><small>Firma y aprobación</small></div>
+        <div><span></span><strong>Supervisor que recibe</strong><small>Firma y recibido conforme</small></div>
+        <div><span></span><strong>Responsable de inventario</strong><small>Validación de stock</small></div>
+      </section>
+
+      <footer class="month-close-footer">
+        <span>Documento interno de cierre mensual. Conservar junto con soportes de caja, compras y devoluciones.</span>
+        <strong>${escapeHtml(pharmacy.name || "Sistema Facturacion")}</strong>
+      </footer>
+    </section>
+  `;
+}
+
 function persistCashClosure() {
   const closure = buildCashClosureModel();
   const next = normalizeCashClosureRecord({
@@ -3906,10 +4321,10 @@ function renderSalesReportPreview() {
 
   const report = buildSalesReportModel(state.reportPeriod);
   summary.innerHTML = `
-    <article class="report-summary-card"><span>Periodo</span><strong>${escapeHtml(report.meta.label)}</strong><small>${escapeHtml(report.meta.rangeLabel)}</small></article>
-    <article class="report-summary-card"><span>Ventas</span><strong>${report.totals.transactions}</strong><small>Transacciones registradas</small></article>
-    <article class="report-summary-card"><span>Ingresos</span><strong>${formatCurrency(report.totals.revenue)}</strong><small>Total del corte</small></article>
-    <article class="report-summary-card"><span>Promedio</span><strong>${formatCurrency(report.totals.average)}</strong><small>Ticket promedio</small></article>
+    <article class="report-summary-card"><i class="bi bi-calendar-check"></i><span>Periodo</span><strong>${escapeHtml(report.meta.label)}</strong><small>${escapeHtml(report.meta.rangeLabel)}</small></article>
+    <article class="report-summary-card"><i class="bi bi-receipt-cutoff"></i><span>Ventas</span><strong>${report.totals.transactions}</strong><small>Transacciones registradas</small></article>
+    <article class="report-summary-card is-money"><i class="bi bi-cash-stack"></i><span>Ingresos</span><strong>${formatCurrency(report.totals.revenue)}</strong><small>Total del corte</small></article>
+    <article class="report-summary-card"><i class="bi bi-speedometer2"></i><span>Promedio</span><strong>${formatCurrency(report.totals.average)}</strong><small>Ticket promedio</small></article>
   `;
   preview.innerHTML = buildSalesReportHtml(state.reportPeriod);
 }
@@ -4007,7 +4422,16 @@ async function openPrintableDocument(title, bodyHtml) {
   printHtmlDocument(documentHtml, "El navegador bloqueo la ventana de impresion.");
 }
 
-function buildPrintableDocumentHtml(title, bodyHtml) {
+function buildPrintableDocumentHtml(title, bodyHtml, options = {}) {
+  const shouldAutoPrint = options.autoPrint !== false;
+  const autoPrintScript = shouldAutoPrint ? `
+      <script>
+        window.onload = () => {
+          window.print();
+          window.onafterprint = () => window.close();
+        };
+      <\/script>` : "";
+
   return `
     <!DOCTYPE html>
     <html lang="es">
@@ -4017,20 +4441,41 @@ function buildPrintableDocumentHtml(title, bodyHtml) {
       <title>${escapeHtml(title)}</title>
       <style>
         :root {
-          --bg: #f4f7fb;
+          --bg: #eef3f8;
           --surface: #ffffff;
-          --soft: #f7f8fc;
-          --primary: #ff6a3d;
-          --text: #193040;
-          --muted: #718295;
-          --border: rgba(25, 48, 64, 0.08);
+          --soft: #f6f9fc;
+          --primary: #0b72ff;
+          --primary-dark: #0f2d52;
+          --success: #14b89a;
+          --warning: #f2a51a;
+          --text: #15263a;
+          --muted: #66758c;
+          --border: rgba(21, 45, 83, 0.12);
         }
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 24px; font-family: Manrope, Arial, sans-serif; color: var(--text); background: var(--bg); }
-        .report-print-shell { max-width: 980px; margin: 0 auto; }
-        .sales-report-sheet, .cash-closure-sheet { display: grid; gap: 18px; padding: 24px; border: 1px solid var(--border); border-radius: 24px; background: var(--surface); }
+        body { margin: 0; padding: 28px; font-family: Manrope, Arial, sans-serif; color: var(--text); background: var(--bg); }
+        .report-print-shell { max-width: 1060px; margin: 0 auto; }
+        .sales-report-sheet, .cash-closure-sheet { position: relative; display: grid; gap: 18px; padding: 26px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); box-shadow: 0 24px 60px rgba(21,45,83,.12); overflow: hidden; }
+        .sales-report-sheet::before { content: ""; position: absolute; inset: 0 0 auto; height: 7px; background: linear-gradient(90deg, var(--primary-dark), var(--primary), var(--success), var(--warning)); }
+        .sales-report-sheet > *:not(.sales-report-watermark) { position: relative; z-index: 1; }
+        .sales-report-watermark {
+          position: absolute;
+          inset: 38% auto auto 50%;
+          z-index: 0;
+          transform: translate(-50%, -50%) rotate(-22deg);
+          color: rgba(15,45,82,.045);
+          font-size: clamp(72px, 12vw, 148px);
+          font-weight: 900;
+          letter-spacing: .18em;
+          white-space: nowrap;
+          pointer-events: none;
+          user-select: none;
+        }
+        .sales-report-ribbon { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: -4px -2px 0; padding: 10px 14px; border: 1px solid rgba(21,45,83,.08); border-radius: 12px; background: linear-gradient(135deg, #10243f, #0b72ff); color: #fff; }
+        .sales-report-ribbon span { font-size: 12px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; opacity: .84; }
+        .sales-report-ribbon strong { font-size: 15px; }
         .sales-report-head, .cash-closure-head { display: flex; justify-content: space-between; gap: 16px; align-items: start; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-        .sales-report-doc-head { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, .9fr); align-items: center; }
+        .sales-report-doc-head { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.15fr) minmax(0, .95fr); align-items: center; }
         .sales-report-doc-brand { display: flex; gap: 14px; align-items: center; min-width: 0; }
         .report-doc-logo {
           display: block;
@@ -4042,38 +4487,114 @@ function buildPrintableDocumentHtml(title, bodyHtml) {
           object-position: center;
           flex: 0 0 auto;
           padding: 6px;
-          border-radius: 18px;
+          border-radius: 14px;
           background: linear-gradient(180deg, rgba(248, 251, 255, .98), rgba(232, 241, 246, .94));
           border: 1px solid rgba(18, 52, 82, .08);
         }
-        .report-doc-logo-fallback { display: grid; place-items: center; border-radius: 18px; background: linear-gradient(135deg, #132c43, var(--primary)); color: #fff; font-size: 24px; font-weight: 800; }
+        .report-doc-logo-fallback { display: grid; place-items: center; border-radius: 14px; background: linear-gradient(135deg, #132c43, var(--primary)); color: #fff; font-size: 24px; font-weight: 800; }
         .sales-report-doc-brand-copy { min-width: 0; }
         .sales-report-doc-brand-copy .sales-report-kicker,
         .sales-report-doc-brand-copy .sales-report-range { text-align: left; }
         .sales-report-doc-title { text-align: center; }
-        .sales-report-doc-title h3 { margin: 0; font-size: 1.6rem; }
-        .sales-report-doc-title strong { display: block; margin-top: 10px; font-size: 1.1rem; letter-spacing: .04em; }
+        .sales-report-doc-title h3 { margin: 0; font-size: 1.75rem; color: var(--primary-dark); }
+        .sales-report-doc-title strong { display: block; width: fit-content; margin: 10px auto 0; padding: 7px 10px; border-radius: 999px; background: #eef5ff; color: #0a55bf; font-size: .78rem; letter-spacing: .08em; }
         .sales-report-doc-stamp small { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.35; }
         .sales-report-kicker, .sales-report-range, .sales-report-stamp span, .cash-closure-kicker, .cash-closure-range, .cash-closure-stamp span { margin: 0; color: var(--muted); }
         .sales-report-head h3, .sales-report-stamp strong, .cash-closure-head h3, .cash-closure-stamp strong { margin: 4px 0 0; }
         .sales-report-stamp, .cash-closure-stamp { text-align: right; }
         .sales-report-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
         .cash-closure-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-        .sales-report-summary article, .sales-report-breakdown, .cash-closure-summary article, .cash-closure-breakdown, .cash-closure-notes { min-width: 0; padding: 14px; border-radius: 16px; background: var(--soft); }
+        .sales-report-summary article, .sales-report-breakdown, .sales-report-products, .cash-closure-summary article, .cash-closure-breakdown, .cash-closure-notes { min-width: 0; padding: 14px; border: 1px solid rgba(21,45,83,.08); border-radius: 12px; background: var(--soft); }
+        .sales-report-summary article { position: relative; overflow: hidden; background: linear-gradient(180deg, #fff, #f6f9fc); }
+        .sales-report-summary article::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: var(--primary); }
+        .sales-report-summary article.is-primary { color: #fff; background: linear-gradient(135deg, #10243f, #0b72ff); }
+        .sales-report-summary article.is-primary span,
+        .sales-report-summary article.is-primary strong,
+        .sales-report-summary article.is-primary small { color: rgba(255,255,255,.92); }
         .sales-report-summary span, .sales-report-breakdown span, .cash-closure-summary span { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-        .sales-report-summary strong, .cash-closure-summary strong { display: block; margin-top: 6px; font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; word-break: break-word; }
+        .sales-report-summary strong, .cash-closure-summary strong { display: block; margin-top: 6px; font-size: 22px; line-height: 1.15; overflow-wrap: anywhere; word-break: break-word; }
         .sales-report-summary small { color: var(--muted); }
-        .sales-report-section-title, .cash-closure-section-title { margin-bottom: 10px; font-weight: 800; }
-        .report-breakdown-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; min-width: 0; padding: 8px 0; border-bottom: 1px solid var(--border); }
+        .sales-report-insights { display: grid; grid-template-columns: .9fr 1.1fr; gap: 12px; }
+        .sales-report-section-title, .cash-closure-section-title { margin-bottom: 10px; color: var(--primary-dark); font-weight: 900; letter-spacing: .02em; }
+        .report-breakdown-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(100px, auto); gap: 8px 12px; min-width: 0; padding: 9px 0 12px; border-bottom: 1px solid var(--border); }
         .report-breakdown-row span, .report-breakdown-row strong { min-width: 0; }
         .report-breakdown-row span { flex: 1 1 auto; }
         .report-breakdown-row strong { flex: 0 1 42%; text-align: right; line-height: 1.25; overflow-wrap: anywhere; word-break: break-word; }
+        .report-breakdown-row i { grid-column: 1 / -1; height: 7px; border-radius: 999px; background: linear-gradient(90deg, var(--primary) var(--bar), #e8eef5 var(--bar)); }
         .report-breakdown-row:last-child { border-bottom: 0; padding-bottom: 0; }
-        .sales-report-table-wrap, .cash-closure-table-wrap { overflow: hidden; border: 1px solid var(--border); border-radius: 18px; }
+        .report-product-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 62px minmax(96px, auto); gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+        .report-product-row:last-child { border-bottom: 0; }
+        .report-product-row span { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 7px; background: #eaf3ff; color: #0a55bf; font-size: 12px; font-weight: 900; }
+        .report-product-row strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .report-product-row em { color: var(--muted); font-size: 12px; font-style: normal; text-align: right; }
+        .report-product-row b { text-align: right; }
+        .report-empty-note { padding: 12px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); background: #fff; }
+        .sales-report-table-wrap, .cash-closure-table-wrap { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: #fff; }
         .sales-report-table-wrap .sales-report-section-title { padding: 14px 16px 0; }
         .sales-report-table, .cash-closure-table { width: 100%; border-collapse: collapse; }
-        .sales-report-table th, .sales-report-table td, .cash-closure-table th, .cash-closure-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); text-align: left; font-size: 14px; }
-        .sales-report-table th, .cash-closure-table th { background: var(--soft); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+        .sales-report-table th, .sales-report-table td, .cash-closure-table th, .cash-closure-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); text-align: left; font-size: 13px; }
+        .sales-report-table th, .cash-closure-table th { background: #f1f6fb; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+        .sales-report-table tbody tr:nth-child(even) td { background: #fafcff; }
+        .sales-report-table td:last-child,
+        .sales-report-table th:last-child { text-align: right; font-weight: 900; }
+        .sales-report-signatures {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 18px;
+          margin-top: 6px;
+          padding-top: 16px;
+          border-top: 1px solid var(--border);
+        }
+        .sales-report-signature {
+          min-height: 92px;
+          display: grid;
+          align-content: end;
+          gap: 6px;
+          padding: 14px;
+          border: 1px solid rgba(21,45,83,.09);
+          border-radius: 12px;
+          background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(246,249,252,.88));
+        }
+        .sales-report-signature span {
+          display: block;
+          height: 32px;
+          border-bottom: 1.5px solid rgba(21,45,83,.42);
+        }
+        .sales-report-signature strong {
+          color: var(--primary-dark);
+          font-size: 13px;
+          text-transform: uppercase;
+          letter-spacing: .06em;
+        }
+        .sales-report-signature small {
+          color: var(--muted);
+          font-size: 11px;
+        }
+        .sales-report-footer {
+          display: flex;
+          justify-content: space-between;
+          gap: 18px;
+          align-items: center;
+          margin-top: 2px;
+          padding: 12px 14px;
+          border-radius: 12px;
+          background: #10243f;
+          color: rgba(255,255,255,.88);
+        }
+        .sales-report-footer div {
+          display: grid;
+          gap: 3px;
+        }
+        .sales-report-footer div:last-child {
+          text-align: right;
+        }
+        .sales-report-footer strong {
+          color: #fff;
+          font-size: 13px;
+        }
+        .sales-report-footer span {
+          font-size: 11px;
+        }
         .sales-report-table tbody tr:last-child td, .cash-closure-table tbody tr:last-child td { border-bottom: 0; }
         .cash-closure-sales-list { display: grid; gap: 10px; padding: 0 14px 14px; }
         .cash-closure-sale-item { padding: 10px 12px; border-radius: 14px; background: var(--soft); }
@@ -4082,9 +4603,60 @@ function buildPrintableDocumentHtml(title, bodyHtml) {
         .cash-closure-sale-top strong:last-child { text-align: right; overflow-wrap: anywhere; word-break: break-word; }
         .cash-closure-sale-meta { margin-top: 6px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
         .cash-closure-empty { padding: 0 14px 14px; color: var(--muted); }
+        .month-close-sheet { position: relative; display: grid; gap: 18px; padding: 26px; border: 1px solid var(--border); border-radius: 18px; background: #fff; box-shadow: 0 24px 60px rgba(21,45,83,.12); overflow: hidden; }
+        .month-close-sheet::before { content: ""; position: absolute; inset: 0 0 auto; height: 7px; background: linear-gradient(90deg, #10243f, #0b72ff, #14b89a); }
+        .month-close-sheet > *:not(.month-close-watermark) { position: relative; z-index: 1; }
+        .month-close-watermark { position: absolute; inset: 42% auto auto 50%; z-index: 0; transform: translate(-50%, -50%) rotate(-22deg); color: rgba(15,45,82,.04); font-size: clamp(78px, 13vw, 154px); font-weight: 900; letter-spacing: .18em; white-space: nowrap; }
+        .month-close-ribbon, .month-close-footer { display: flex; justify-content: space-between; gap: 14px; align-items: center; padding: 12px 14px; border-radius: 12px; background: linear-gradient(135deg, #10243f, #0b72ff); color: #fff; }
+        .month-close-ribbon span { font-size: 12px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; opacity: .84; }
+        .month-close-head { display: flex; justify-content: space-between; gap: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+        .month-close-head h3, .month-close-head p, .month-close-head strong, .month-close-head span, .month-close-head small { margin: 0; display: block; }
+        .month-close-head h3 { margin-top: 4px; color: var(--primary-dark); font-size: 1.8rem; }
+        .month-close-head p, .month-close-head span, .month-close-head small { color: var(--muted); }
+        .month-close-head > div:last-child { text-align: right; }
+        .month-close-summary, .month-close-ledger, .month-close-signatures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+        .month-close-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .month-close-summary article, .month-close-ledger article, .month-close-audit { min-width: 0; padding: 14px; border: 1px solid rgba(21,45,83,.08); border-radius: 12px; background: var(--soft); }
+        .month-close-summary article.is-primary { color: #fff; background: linear-gradient(135deg, #10243f, #0b72ff); }
+        .month-close-summary span, .month-close-row span { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+        .month-close-summary strong { display: block; margin-top: 6px; font-size: 21px; line-height: 1.15; }
+        .month-close-summary small, .month-close-row small { color: var(--muted); }
+        .month-close-summary .is-primary span, .month-close-summary .is-primary strong, .month-close-summary .is-primary small { color: rgba(255,255,255,.92); }
+        .month-close-section-title { margin-bottom: 10px; color: var(--primary-dark); font-weight: 900; }
+        .month-close-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, auto); gap: 4px 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+        .month-close-row:last-child { border-bottom: 0; }
+        .month-close-row strong { text-align: right; overflow-wrap: anywhere; }
+        .month-close-row small { grid-column: 1 / -1; }
+        .month-close-product { display: grid; grid-template-columns: 28px minmax(0, 1fr) 56px minmax(96px, auto); gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); }
+        .month-close-product span { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 7px; background: #eaf3ff; color: #0a55bf; font-size: 12px; font-weight: 900; }
+        .month-close-product strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .month-close-product small { color: var(--muted); text-align: right; }
+        .month-close-product b { text-align: right; }
+        .month-close-table-wrap { border: 1px solid var(--border); border-radius: 12px; background: #fff; overflow: hidden; }
+        .month-close-table-wrap .month-close-section-title { padding: 14px 16px 0; }
+        .month-close-table { width: 100%; border-collapse: collapse; }
+        .month-close-table th, .month-close-table td { padding: 11px 14px; border-bottom: 1px solid var(--border); text-align: left; font-size: 13px; }
+        .month-close-table th { background: #f1f6fb; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+        .month-close-table th:last-child, .month-close-table td:last-child { text-align: right; font-weight: 900; }
+        .month-close-audit ul { margin: 0; padding-left: 18px; color: var(--muted); }
+        .month-close-signatures { grid-template-columns: repeat(3, minmax(0, 1fr)); padding-top: 14px; border-top: 1px solid var(--border); }
+        .month-close-signatures div { display: grid; gap: 6px; align-content: end; min-height: 92px; padding: 14px; border: 1px solid rgba(21,45,83,.09); border-radius: 12px; background: linear-gradient(180deg, #fff, #f6f9fc); }
+        .month-close-signatures span { display: block; height: 32px; border-bottom: 1.5px solid rgba(21,45,83,.42); }
+        .month-close-signatures strong { color: var(--primary-dark); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+        .month-close-signatures small { color: var(--muted); font-size: 11px; }
+        .month-close-footer span, .month-close-footer strong { color: rgba(255,255,255,.9); }
+        .month-close-footer strong { white-space: nowrap; }
         @media (max-width: 640px) {
           .sales-report-doc-head { grid-template-columns: 1fr; }
           .sales-report-doc-title, .sales-report-doc-stamp { text-align: left; }
+          .sales-report-doc-title strong { margin-left: 0; }
+          .sales-report-summary, .sales-report-insights { grid-template-columns: 1fr; }
+          .sales-report-signatures { grid-template-columns: 1fr; }
+          .sales-report-footer { display: grid; }
+          .sales-report-footer div:last-child { text-align: left; }
+          .month-close-head, .month-close-ribbon, .month-close-footer { display: grid; text-align: left; }
+          .month-close-head > div:last-child { text-align: left; }
+          .month-close-summary, .month-close-ledger, .month-close-signatures { grid-template-columns: 1fr; }
           .cash-closure-head { display: grid; gap: 10px; }
           .cash-closure-stamp { text-align: left; }
           .cash-closure-summary { grid-template-columns: 1fr; }
@@ -4093,19 +4665,14 @@ function buildPrintableDocumentHtml(title, bodyHtml) {
         @media print {
           body { padding: 0; background: #fff; }
           .report-print-shell { max-width: none; }
-          .sales-report-sheet, .cash-closure-sheet { border: 0; border-radius: 0; padding: 0; }
+          .sales-report-sheet, .cash-closure-sheet, .month-close-sheet { border: 0; border-radius: 0; padding: 0; box-shadow: none; }
           .cash-closure-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
       </style>
     </head>
     <body>
       <div class="report-print-shell">${bodyHtml}</div>
-      <script>
-        window.onload = () => {
-          window.print();
-          window.onafterprint = () => window.close();
-        };
-      </script>
+      ${autoPrintScript}
     </body>
     </html>
   `;
@@ -4138,6 +4705,7 @@ function ensureAdminNavigation() {
 
 function ensureOperationsNavigation() {
   const entries = [
+      { href: "cierre-mes.html", icon: "bi-calendar-check", label: "Cierre de mes" },
       { href: "proveedores.html", icon: "bi-truck", label: "Proveedores" },
       { href: "compras.html", icon: "bi-bag-plus", label: "Compras" },
       { href: "promociones.html", icon: "bi-megaphone", label: "Promociones" },
@@ -4174,7 +4742,9 @@ function printSalesReport() {
 
 async function downloadSalesReport() {
   const report = buildSalesReportModel(state.reportPeriod);
-  const documentHtml = buildPrintableDocumentHtml(`${report.meta.label} - Sistema Facturacion`, buildSalesReportHtml(state.reportPeriod));
+  const reportHtml = buildSalesReportHtml(state.reportPeriod);
+  const documentHtml = buildPrintableDocumentHtml(`${report.meta.label} - Sistema Facturacion`, reportHtml, { autoPrint: false });
+  const printableDocumentHtml = buildPrintableDocumentHtml(`${report.meta.label} - Sistema Facturacion`, reportHtml);
 
   if (window.farmaposDesktop?.print?.savePdf) {
     try {
@@ -4192,7 +4762,7 @@ async function downloadSalesReport() {
     } catch (error) {
       const rawMessage = String(error?.message || error || "").trim();
       if (rawMessage.includes("No handler registered for 'print:savePdf'")) {
-        printHtmlDocument(documentHtml, "El navegador bloqueo la ventana de impresion.");
+        printHtmlDocument(printableDocumentHtml, "El navegador bloqueo la ventana de impresion.");
         await showInfoDialog("La app necesita reiniciarse para activar la descarga PDF. Mientras tanto se abrio la impresion para que lo guardes como PDF.", {
           title: "Reinicia la app",
           variant: "warn"
@@ -4207,7 +4777,87 @@ async function downloadSalesReport() {
     }
   }
 
-  printHtmlDocument(documentHtml, "El navegador bloqueo la ventana de impresion.");
+  printHtmlDocument(printableDocumentHtml, "El navegador bloqueo la ventana de impresion.");
+}
+
+function renderMonthClosurePage() {
+  const monthInput = document.getElementById("monthClosureInput");
+  if (monthInput && !monthInput.value) monthInput.value = getCurrentMonthKey();
+  const model = buildMonthClosureModel(getMonthClosureInputValue());
+
+  setText("monthClosureRevenue", formatCurrency(model.revenue));
+  setText("monthClosurePeriodLabel", model.label);
+  setText("monthClosurePurchases", formatCurrency(model.purchaseTotal));
+  setText("monthClosureInventoryValue", formatCurrency(model.inventoryValue));
+  setText("monthClosureStockUnits", `${model.stockUnits} unidades`);
+  setText("monthClosureCashDiff", formatCurrency(model.closureDifference));
+
+  const summary = document.getElementById("monthClosureSummary");
+  if (summary) {
+    summary.innerHTML = `
+      <article><i class="bi bi-receipt-cutoff"></i><span>Ventas activas</span><strong>${model.transactions}</strong><small>${model.units} unidades vendidas</small></article>
+      <article><i class="bi bi-speedometer2"></i><span>Ticket promedio</span><strong>${formatCurrency(model.average)}</strong><small>Promedio mensual</small></article>
+      <article><i class="bi bi-arrow-counterclockwise"></i><span>Devoluciones</span><strong>${formatCurrency(model.returnTotal)}</strong><small>${model.returnUnits} unidades devueltas</small></article>
+      <article><i class="bi bi-cash-coin"></i><span>Retiros</span><strong>${formatCurrency(model.withdrawalTotal)}</strong><small>${model.withdrawals.length} movimiento(s)</small></article>
+      <article><i class="bi bi-journal-check"></i><span>Cierres diarios</span><strong>${model.closures.length}</strong><small>Guardados en el mes</small></article>
+      <article><i class="bi bi-exclamation-triangle"></i><span>Anulaciones</span><strong>${model.annulledSales.length}</strong><small>Ventas reversadas</small></article>
+    `;
+  }
+
+  const risks = document.getElementById("monthClosureRisks");
+  if (risks) {
+    risks.innerHTML = model.risks.length
+      ? model.risks.map((risk) => `<div class="list-card month-close-risk-item"><i class="bi bi-exclamation-circle"></i><div><strong>${escapeHtml(risk)}</strong><span>Revisar antes de imprimir y firmar.</span></div></div>`).join("")
+      : `<div class="list-card month-close-risk-item is-ok"><i class="bi bi-check2-circle"></i><div><strong>Cierre listo para revision</strong><span>No hay alertas criticas en este periodo.</span></div></div>`;
+  }
+
+  const preview = document.getElementById("monthClosurePreview");
+  if (preview) preview.innerHTML = buildMonthClosureHtml(model);
+}
+
+function printMonthClosure() {
+  const model = buildMonthClosureModel(getMonthClosureInputValue());
+  openPrintableDocument(`Cierre de mes - ${model.label}`, buildMonthClosureHtml(model));
+}
+
+async function downloadMonthClosure() {
+  const model = buildMonthClosureModel(getMonthClosureInputValue());
+  const closureHtml = buildMonthClosureHtml(model);
+  const documentHtml = buildPrintableDocumentHtml(`Cierre de mes - ${model.label}`, closureHtml, { autoPrint: false });
+  const printableDocumentHtml = buildPrintableDocumentHtml(`Cierre de mes - ${model.label}`, closureHtml);
+
+  if (window.farmaposDesktop?.print?.savePdf) {
+    try {
+      const result = await window.farmaposDesktop.print.savePdf({
+        filename: `cierre-mes-${model.key}.pdf`,
+        html: documentHtml
+      });
+      if (!result?.canceled) {
+        await showInfoDialog("El cierre de mes se guardo en PDF correctamente.", {
+          title: "PDF generado",
+          variant: "success"
+        });
+      }
+      return;
+    } catch (error) {
+      const rawMessage = String(error?.message || error || "").trim();
+      if (!rawMessage.includes("No handler registered for 'print:savePdf'")) {
+        await showInfoDialog(rawMessage || "No fue posible generar el PDF del cierre mensual.", {
+          title: "Error al exportar",
+          variant: "warn"
+        });
+        return;
+      }
+    }
+  }
+
+  printHtmlDocument(printableDocumentHtml, "El navegador bloqueo la ventana de impresion.");
+}
+
+function bindMonthClosureEvents() {
+  document.getElementById("monthClosureInput")?.addEventListener("change", renderMonthClosurePage);
+  document.getElementById("printMonthClosure")?.addEventListener("click", printMonthClosure);
+  document.getElementById("downloadMonthClosure")?.addEventListener("click", downloadMonthClosure);
 }
 
 function renderCashClosurePage() {
@@ -4803,20 +5453,28 @@ function renderInventory() {
 
   const alerts = document.getElementById("inventoryAlerts");
   if (alerts) {
+    const outItems = state.inventory.filter((item) => item.stock === 0);
     const lowItems = state.inventory.filter((item) => item.stock > 0 && item.stock <= 10);
     const expirationAlerts = getExpirationAlerts().slice(0, 3);
-    alerts.innerHTML = expirationAlerts.length
-      ? expirationAlerts.map(({ item, meta }) => `
+    const alertCards = [
+      ...expirationAlerts.map(({ item, meta }) => ({
+        title: item.name,
+        detail: meta.status === "expired" ? `Vencido hace ${meta.days} dia(s).` : `Vence en ${meta.days} dia(s).`
+      })),
+      ...outItems.map((item) => ({
+        title: item.name,
+        detail: "Agotado. Reponer antes de vender."
+      })),
+      ...lowItems.map((item) => ({
+        title: item.name,
+        detail: `Por agotarse: ${item.stock} unidades.`
+      }))
+    ].slice(0, 5);
+    alerts.innerHTML = alertCards.length
+      ? alertCards.map((alert) => `
           <div class="list-card">
-            <strong>${escapeHtml(item.name)}</strong>
-            <span>${meta.status === "expired" ? `Vencido hace ${meta.days} dia(s).` : `Vence en ${meta.days} dia(s).`}</span>
-          </div>
-        `).join("")
-      : lowItems.length
-      ? lowItems.map((item) => `
-          <div class="list-card">
-            <strong>${escapeHtml(item.name)}</strong>
-            <span>Stock bajo: ${item.stock} unidades.</span>
+            <strong>${escapeHtml(alert.title)}</strong>
+            <span>${escapeHtml(alert.detail)}</span>
           </div>
         `).join("")
       : `<div class="list-card"><strong>Inventario estable</strong><span>No hay alertas criticas.</span></div>`;
@@ -4832,24 +5490,38 @@ function renderInventory() {
         units: items.reduce((sum, item) => sum + item.stock, 0)
       };
     });
-    categories.innerHTML = grouped.map((group) => `
+    const visibleGroups = grouped.sort((a, b) => b.units - a.units).slice(0, 4);
+    const hiddenGroups = Math.max(0, grouped.length - visibleGroups.length);
+    categories.innerHTML = visibleGroups.map((group) => `
       <div class="list-card">
         <strong>${escapeHtml(getCategoryLabel(group.category))} - ${group.count} productos</strong>
         <span>${group.units} unidades disponibles.</span>
       </div>
-    `).join("");
+    `).join("") + (hiddenGroups
+      ? `<div class="list-card inventory-more-card"><strong>+ ${hiddenGroups} categorias mas</strong><span>Consulta el resumen operativo para verlas todas.</span></div>`
+      : "");
   }
 
   const board = document.getElementById("inventoryBoard");
   if (board) {
-    board.innerHTML = state.inventory.map((item) => `
-      <article class="inventory-tile ${item.stock === 0 ? "is-stock-out" : item.stock <= 10 ? "is-stock-low" : "is-stock-ok"}">
-        ${renderProductVisual(item, { className: "inventory-tile-visual" })}
-        <strong>${escapeHtml(item.name)}</strong>
-        <span>${escapeHtml(getCategoryLabel(item.category))}</span>
-        <span>${formatCurrency(item.price)}</span>
-        <span>Stock: ${item.stock}</span>
-        <button class="btn btn-sm btn-outline-secondary inventory-edit-btn" type="button" data-id="${escapeHtml(item.id)}">Editar</button>
+    const grouped = [...new Set(state.inventory.map((item) => item.category || "general"))].map((category) => {
+      const items = state.inventory.filter((item) => (item.category || "general") === category);
+      const units = items.reduce((sum, item) => sum + Number(item.stock || 0), 0);
+      const low = items.filter((item) => item.stock > 0 && item.stock <= 10).length;
+      const out = items.filter((item) => item.stock === 0).length;
+      return { category, count: items.length, units, low, out };
+    }).sort((a, b) => b.count - a.count);
+    board.innerHTML = grouped.map((group) => `
+      <article class="inventory-tile ${group.out ? "is-stock-out" : group.low ? "is-stock-low" : "is-stock-ok"}">
+        <div class="inventory-tile-icon"><i class="bi ${getProductIcon(normalizeCategory(group.category))}"></i></div>
+        <div class="inventory-tile-copy">
+          <strong>${escapeHtml(getCategoryLabel(group.category))}</strong>
+          <span>${group.count} referencias - ${group.units} unidades</span>
+        </div>
+        <div class="inventory-tile-metrics">
+          <span><b>${group.low}</b> bajos</span>
+          <span><b>${group.out}</b> agotados</span>
+        </div>
       </article>
     `).join("");
   }
@@ -4865,17 +5537,22 @@ function renderInventory() {
         : { className: "neutral", label: "Sin fecha" };
       return `
       <tr class="inventory-row-${expirationBadge.className}">
+        <td>
+          <div class="inventory-product-cell">
+            ${renderProductVisual(item, { className: "inventory-table-thumb" })}
+            <div>
+              <strong>${escapeHtml(item.name)}</strong>
+              <span>${escapeHtml(item.invima || "Sin registro")}</span>
+            </div>
+          </div>
+        </td>
         <td>${escapeHtml(item.sku)}</td>
-        <td>${escapeHtml(item.name)}</td>
-        <td>${renderProductVisual(item, { className: "inventory-table-thumb" })}</td>
         <td>${escapeHtml(getCategoryLabel(item.category))}</td>
-        <td>${escapeHtml(item.batch || "-")}</td>
-        <td>${escapeHtml(formatDisplayDate(item.expirationDate))}</td>
-        <td><span class="state-pill expiration-${expirationBadge.className}">${expirationBadge.label}</span></td>
-        <td>${escapeHtml(item.laboratory || "-")}</td>
-        <td>${escapeHtml(item.invima || "-")}</td>
-        <td>${formatCurrency(item.price)}</td>
         <td>${item.stock}</td>
+        <td>${formatCurrency(item.price)}</td>
+        <td><span class="state-pill expiration-${expirationBadge.className}">${expirationBadge.label}</span><small>${escapeHtml(formatDisplayDate(item.expirationDate))}</small></td>
+        <td>${escapeHtml(item.batch || "-")}</td>
+        <td>${escapeHtml(item.laboratory || "-")}</td>
         <td><span class="state-pill ${item.active === "NO" || item.stock <= 10 ? "warn" : "ok"}">${item.active === "NO" ? "Inactivo" : item.stock <= 10 ? "Stock bajo" : "Disponible"}</span></td>
         <td><button class="btn btn-sm btn-outline-secondary inventory-edit-btn" type="button" data-id="${escapeHtml(item.id)}">Editar</button></td>
       </tr>
@@ -4883,7 +5560,7 @@ function renderInventory() {
     }).join("");
 
     if (!filteredItems.length) {
-      table.innerHTML = `<tr><td colspan="13"><div class="empty-state compact-empty"><p>No hay productos para esos filtros.</p></div></td></tr>`;
+      table.innerHTML = `<tr><td colspan="10"><div class="empty-state compact-empty"><p>No hay productos para esos filtros.</p></div></td></tr>`;
     }
   }
 
@@ -6198,14 +6875,41 @@ async function loadSupportOverviewFromApi() {
   return overview;
 }
 
-async function loadSupportThreadFromApi(ticketId) {
+function getSupportMessageSignature(messages = []) {
+  const lastMessage = Array.isArray(messages) ? messages[messages.length - 1] : null;
+  if (!lastMessage) return "empty";
+  return [
+    lastMessage.id || "",
+    lastMessage.createdAt || "",
+    lastMessage.authorScope || "",
+    lastMessage.message || ""
+  ].join("|");
+}
+
+function shouldNotifyIncomingSupportMessage(messages = []) {
+  const lastMessage = Array.isArray(messages) ? messages[messages.length - 1] : null;
+  if (!lastMessage) return false;
+  return String(lastMessage.authorScope || "").trim().toUpperCase() !== getSupportScope();
+}
+
+async function loadSupportThreadFromApi(ticketId, options = {}) {
+  const normalizedTicketId = String(ticketId || "").trim();
+  const previousTicketId = state.supportLastThreadTicketId;
+  const previousSignature = state.supportLastThreadSignature;
   const thread = await postExcelAction("support_thread", {
-    ticketId,
+    ticketId: normalizedTicketId,
     companyId: getSupportCompanyIdentifier(),
     isInternal: isInternalSupportSession()
   });
   state.supportSelectedTicketId = String(thread?.ticket?.id || "").trim();
   state.supportMessages = Array.isArray(thread?.messages) ? thread.messages : [];
+  const nextSignature = getSupportMessageSignature(state.supportMessages);
+  const sameThread = previousTicketId && previousTicketId === state.supportSelectedTicketId;
+  if (options.notifyIncoming && sameThread && previousSignature && nextSignature !== previousSignature && shouldNotifyIncomingSupportMessage(state.supportMessages)) {
+    notifyIncomingSupportTicket(1);
+  }
+  state.supportLastThreadTicketId = state.supportSelectedTicketId;
+  state.supportLastThreadSignature = nextSignature;
   return thread;
 }
 
@@ -8514,18 +9218,39 @@ function renderReports() {
 
   const bars = document.getElementById("reportBars");
   if (bars) {
-    const categories = [...new Set(state.inventory.map((item) => item.category))].map((category) => ({
-      category,
-      sold: activeSales.reduce((sum, sale) => sum + sale.items.filter((item) => state.inventory.find((entry) => entry.id === item.id)?.category === category).reduce((acc, item) => acc + item.quantity, 0), 0)
-    }));
+    const report = buildSalesReportModel(state.reportPeriod);
+    const categories = [...new Set(state.inventory.map((item) => item.category || "general"))].map((category) => {
+      const sold = report.sales.reduce((sum, sale) => sum + sale.items.filter((item) => state.inventory.find((entry) => entry.id === item.id)?.category === category).reduce((acc, item) => acc + item.quantity, 0), 0);
+      const revenueByCategory = report.sales.reduce((sum, sale) => sum + sale.items.filter((item) => state.inventory.find((entry) => entry.id === item.id)?.category === category).reduce((acc, item) => acc + Number(item.lineTotal || item.price * item.quantity || 0), 0), 0);
+      return { category, sold, revenue: revenueByCategory };
+    }).filter((item) => item.sold > 0).sort((a, b) => b.sold - a.sold);
     const max = Math.max(...categories.map((item) => item.sold), 1);
+    const selectedCategory = bars.dataset.selected && categories.some((item) => item.category === bars.dataset.selected)
+      ? bars.dataset.selected
+      : categories[0]?.category || "";
+    bars.dataset.selected = selectedCategory;
+    const selected = categories.find((item) => item.category === selectedCategory) || categories[0] || null;
 
-    bars.innerHTML = categories.map((item) => `
-      <div class="bar-card">
-        <strong><span>${escapeHtml(getCategoryLabel(item.category))}</span><span>${item.sold} und</span></strong>
-        <div class="bar-track"><div class="bar-fill" style="width:${(item.sold / max) * 100}%"></div></div>
-      </div>
-    `).join("");
+    bars.innerHTML = categories.length
+      ? `
+        <div class="report-chart-panel">
+          <div class="report-chart-visual" aria-label="Grafico de desempeño por categoria">
+            ${categories.slice(0, 8).map((item) => `
+              <button class="report-chart-bar ${item.category === selectedCategory ? "is-active" : ""}" type="button" data-report-category="${escapeHtml(item.category)}" style="--bar:${Math.max(8, Math.round((item.sold / max) * 100))}%">
+                <span>${escapeHtml(getCategoryLabel(item.category))}</span>
+                <b>${item.sold}</b>
+              </button>
+            `).join("")}
+          </div>
+          <div class="report-chart-detail">
+            <span>Categoría seleccionada</span>
+            <strong>${escapeHtml(getCategoryLabel(selected?.category || "general"))}</strong>
+            <div><b>${selected?.sold || 0}</b> unidades vendidas</div>
+            <small>${formatCurrency(selected?.revenue || 0)} facturados en ${escapeHtml(report.meta.label.toLowerCase())}</small>
+          </div>
+        </div>
+      `
+      : `<div class="report-chart-empty">Aún no hay ventas para graficar en este periodo.</div>`;
   }
 
   const insights = document.getElementById("reportInsights");
@@ -8546,8 +9271,16 @@ function bindReportsEvents() {
       document.querySelectorAll(".report-period-btn").forEach((item) => item.classList.remove("active"));
       button.classList.add("active");
       state.reportPeriod = button.dataset.period || "day";
-      renderSalesReportPreview();
+      renderReports();
     });
+  });
+
+  document.getElementById("reportBars")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-report-category]");
+    if (!button) return;
+    const chart = document.getElementById("reportBars");
+    if (chart) chart.dataset.selected = String(button.dataset.reportCategory || "");
+    renderReports();
   });
 
   document.getElementById("printSalesReport")?.addEventListener("click", printSalesReport);
@@ -9337,9 +10070,18 @@ async function syncAdminRealtimeState() {
 async function syncSupportRealtimeState() {
   try {
     await loadSupportOverviewFromApi();
-    if (!state.supportSelectedTicketId && state.supportTickets[0]?.id) {
+    if (state.supportSelectedTicketId) {
+      await loadSupportThreadFromApi(state.supportSelectedTicketId, {
+        notifyIncoming: document.body.dataset.page === "support"
+      });
+      if (document.body.dataset.page === "support") {
+        await markSupportTicketReadInApi(state.supportSelectedTicketId);
+      }
+    } else if (state.supportTickets[0]?.id) {
       await loadSupportThreadFromApi(state.supportTickets[0].id);
-      await markSupportTicketReadInApi(state.supportTickets[0].id);
+      if (document.body.dataset.page === "support") {
+        await markSupportTicketReadInApi(state.supportTickets[0].id);
+      }
     }
     return true;
   } catch (error) {
@@ -9657,12 +10399,16 @@ function renderSupportPage() {
 }
 
 function bindSupportEvents() {
+  bindSupportAudioUnlock();
+
   document.getElementById("supportRefreshButton")?.addEventListener("click", async () => {
+    unlockSupportNotificationAudio();
     await loadSupportOverviewFromApi();
     renderSupportPage();
   });
 
   document.getElementById("supportNewTicketButton")?.addEventListener("click", () => {
+    unlockSupportNotificationAudio();
     state.supportSelectedTicketId = "";
     state.supportMessages = [];
     renderSupportPage();
@@ -9671,6 +10417,7 @@ function bindSupportEvents() {
   document.getElementById("supportTicketList")?.addEventListener("click", async (event) => {
     const ticketCard = event.target.closest("[data-support-ticket-id]");
     if (!ticketCard) return;
+    unlockSupportNotificationAudio();
     const ticketId = String(ticketCard.getAttribute("data-support-ticket-id") || "").trim();
     if (!ticketId) return;
     await loadSupportThreadFromApi(ticketId);
@@ -9679,6 +10426,7 @@ function bindSupportEvents() {
   });
 
   document.getElementById("supportCreateTicketButton")?.addEventListener("click", async () => {
+    unlockSupportNotificationAudio();
     const payload = {
       title: String(document.getElementById("supportTicketTitleInput")?.value || "").trim(),
       category: String(document.getElementById("supportTicketCategoryInput")?.value || "GENERAL").trim() || "GENERAL",
@@ -9719,6 +10467,7 @@ function bindSupportEvents() {
   });
 
   document.getElementById("supportSendReplyButton")?.addEventListener("click", async () => {
+    unlockSupportNotificationAudio();
     const ticketId = state.supportSelectedTicketId;
     const message = document.getElementById("supportReplyInput")?.value || "";
     if (!ticketId) return;
@@ -9739,6 +10488,7 @@ function bindSupportEvents() {
   });
 
   document.getElementById("supportUpdateStatusButton")?.addEventListener("click", async () => {
+    unlockSupportNotificationAudio();
     if (!isInternalSupportSession() || !state.supportSelectedTicketId) return;
     const status = document.getElementById("supportStatusSelect")?.value || "ABIERTO";
 
@@ -10208,10 +10958,11 @@ function buildTicketQrPayload(sale) {
   const pharmacy = getTicketPharmacyProfile();
   const items = (sale.items || []).map((item) => `${item.quantity}x ${item.name}`).join(" | ");
   const isAnnulled = String(sale.status || "").trim().toUpperCase() === "ANULADA";
+  const receiptTicketNumber = formatTicketNumberForReceipt(sale.ticketNumber || sale.id || "");
 
   return [
     `Empresa: ${pharmacy.name || "Sistema Facturacion"}`,
-    `Ticket: ${sale.ticketNumber || sale.id || ""}`,
+    `Ticket: ${receiptTicketNumber}`,
     isAnnulled ? "Estado: ANULADA" : "",
     `Fecha: ${sale.date || ""} ${sale.time || ""}`.trim(),
     `Cliente: ${sale.clientName || "Cliente general"}`,
@@ -10234,6 +10985,7 @@ function buildTicketQrUrl(sale) {
 function buildTicketHtml(sale) {
   const pharmacy = getTicketPharmacyProfile();
   const isAnnulled = String(sale.status || "").trim().toUpperCase() === "ANULADA";
+  const receiptTicketNumber = formatTicketNumberForReceipt(sale.ticketNumber);
   const pharmacyLocation = [pharmacy.address, pharmacy.city].filter(Boolean).join(" | ");
   const pharmacyContact = [pharmacy.phone, pharmacy.email].filter(Boolean).join(" | ");
   const qrUrl = buildTicketQrUrl(sale);
@@ -10274,7 +11026,7 @@ function buildTicketHtml(sale) {
       <section class="ticket-meta-grid">
         <div class="ticket-meta-card">
           <span>No. factura/ticket</span>
-          <strong>${escapeHtml(sale.ticketNumber)}</strong>
+          <strong>${escapeHtml(receiptTicketNumber)}</strong>
         </div>
         <div class="ticket-meta-card">
           <span>Fecha</span>
@@ -10345,6 +11097,46 @@ function closeTicket() {
   const modal = document.getElementById("ticketModal");
   if (modal) modal.hidden = true;
 }
+
+/* Session logout modal behavior */
+function openLogoutModal() {
+  const modal = document.getElementById("logoutModal");
+  const userNameEl = document.getElementById("logoutUserName");
+  if (modal) {
+    // attempt to show current user info if available
+    try {
+      const currentUser = state?.currentUser || (window?.AUTH_USER || null);
+      if (currentUser && userNameEl) userNameEl.textContent = String(currentUser.name || currentUser.username || currentUser.email || "usuario");
+    } catch (e) {
+      /* ignore */
+    }
+    modal.hidden = false;
+  }
+}
+
+function closeLogoutModal() {
+  const modal = document.getElementById("logoutModal");
+  if (modal) modal.hidden = true;
+}
+
+function performLogout() {
+  // clear local state and redirect to login
+  try { localStorage.removeItem("auth_token"); } catch (e) {}
+  try { sessionStorage.clear(); } catch (e) {}
+  // close modal then redirect
+  closeLogoutModal();
+  window.location.href = "pos.html";
+}
+
+// bind logout modal triggers if present
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("logoutTrigger")?.addEventListener("click", openLogoutModal);
+  document.getElementById("logoutButton")?.addEventListener("click", openLogoutModal);
+  document.getElementById("closeLogoutModal")?.addEventListener("click", closeLogoutModal);
+  document.getElementById("logoutBackdrop")?.addEventListener("click", closeLogoutModal);
+  document.getElementById("cancelLogout")?.addEventListener("click", closeLogoutModal);
+  document.getElementById("confirmLogout")?.addEventListener("click", performLogout);
+});
 
 function printCurrentTicket() {
   if (!state.lastTicketHtml) return;
@@ -10447,9 +11239,10 @@ function buildTicketPrintableDocument(ticketHtml, title = "") {
           width: 56px;
           height: 56px;
           overflow: hidden;
-          border-radius: 16px;
-          color: #fff;
-          background: linear-gradient(135deg, var(--primary), var(--accent));
+          border-radius: 8px;
+          color: var(--text);
+          background: #fff;
+          border: 1px solid rgba(23, 36, 51, 0.28);
           font-family: sans-serif;
           font-weight: 800;
         }
@@ -10496,9 +11289,9 @@ function buildTicketPrintableDocument(ticketHtml, title = "") {
         }
         .ticket-meta-card {
           padding: 8px 5px;
-          border-radius: 10px;
-          background: rgba(15,107,255,.07);
-          border: 1px solid rgba(15,107,255,.12);
+          border-radius: 8px;
+          background: #fff;
+          border: 1px solid rgba(23, 36, 51, 0.22);
           text-align: center;
           font-family: sans-serif;
         }
@@ -10561,12 +11354,16 @@ function buildTicketPrintableDocument(ticketHtml, title = "") {
         .ticket-total {
           margin-top: 4px;
           padding: 8px 9px;
-          border-top: 0;
-          border-radius: 11px;
-          background: #172433;
-          color: #fff;
+          border: 1px solid rgba(23, 36, 51, 0.55);
+          border-radius: 8px;
+          background: #fff;
+          color: var(--text);
           font-size: 14px;
           font-weight: 800;
+        }
+        .ticket-total span,
+        .ticket-total strong {
+          color: var(--text);
         }
         .ticket-footer {
           display: grid;
@@ -10626,11 +11423,28 @@ function buildTicketPrintableDocument(ticketHtml, title = "") {
         }
         @media print {
           body { padding: 0; }
+          * {
+            -webkit-print-color-adjust: economy;
+            print-color-adjust: economy;
+          }
           .ticket-paper {
             width: auto;
             border: 0;
             border-radius: 0;
             padding: 2mm 2.5mm;
+          }
+          .ticket-brand-mark,
+          .ticket-meta-card,
+          .ticket-total,
+          .ticket-status-pill,
+          .ticket-qr-image {
+            background: #fff !important;
+            color: #000 !important;
+            box-shadow: none !important;
+          }
+          .ticket-total span,
+          .ticket-total strong {
+            color: #000 !important;
           }
         }
       </style>
@@ -10685,9 +11499,10 @@ async function downloadTicketPdf(ticketHtml, filename = "ticket-farmapos.pdf", t
     }
   }
 
-  await showInfoDialog("La descarga en PDF esta disponible en la app de escritorio. En navegador puedes usar Imprimir y elegir Guardar como PDF.", {
-    title: "PDF no disponible aqui",
-    variant: "warn"
+  printHtmlDocument(documentHtml, "El navegador bloqueó la ventana de impresión. Por favor permite ventanas emergentes e inténtalo de nuevo.");
+  await showInfoDialog("Se ha abierto el diálogo de impresión. Usa Guardar como PDF para descargar el ticket en PDF.", {
+    title: "Guardar como PDF",
+    variant: "info"
   });
 }
 
@@ -10756,6 +11571,8 @@ async function finishSale() {
     return;
   }
 
+  setCheckoutLoading(true);
+
   const client = getSelectedClient();
   const now = new Date();
   const draftSale = {
@@ -10793,6 +11610,8 @@ async function finishSale() {
       : "No se actualizo el inventario ni se registro la venta.";
     showInfoDialog(`${detail} ${error.message}`, { title: "Error de Excel en linea", variant: "danger" });
     return;
+  } finally {
+    setCheckoutLoading(false);
   }
 
   const matched = state.clients.find((entry) => entry.id === client?.id);
@@ -11846,6 +12665,7 @@ function rerenderCurrentPage() {
     bindReportsEvents();
   }
   if (page === "cash-closure") renderCashClosurePage();
+  if (page === "month-closure") renderMonthClosurePage();
   if (page === "cash-withdrawal") renderCashWithdrawalsPage();
   if (page === "support") renderSupportPage();
   if (page === "settings") renderSettings();
@@ -11857,6 +12677,7 @@ function rerenderCurrentPage() {
 function initializePage() {
   const page = document.body.dataset.page;
   ensureFeedbackUi();
+  bindSupportAudioUnlock();
   maybeShowPendingSystemUpdateNotification();
   renderSessionInfo();
   ensureReleaseNotesCenter();
@@ -11907,6 +12728,10 @@ function initializePage() {
   if (page === "cash-closure") {
     renderCashClosurePage();
     bindCashClosureEvents();
+  }
+  if (page === "month-closure") {
+    renderMonthClosurePage();
+    bindMonthClosureEvents();
   }
   if (page === "cash-withdrawal") {
     renderCashWithdrawalsPage();
