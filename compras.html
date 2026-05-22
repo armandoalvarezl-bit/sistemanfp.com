@@ -39,7 +39,26 @@
     <main class="app-main">
       <header class="app-topbar">
         <div><p class="section-kicker">Abastecimiento</p><h1>Compras y entradas de inventario</h1></div>
+        <div class="topbar-actions">
+          <a class="btn btn-outline-secondary" href="proveedores.html"><i class="bi bi-truck"></i> Proveedores</a>
+          <a class="btn btn-outline-secondary" href="inventario.html"><i class="bi bi-box-seam"></i> Inventario</a>
+        </div>
       </header>
+
+      <section class="purchase-workflow-strip" aria-label="Flujo de recepcion">
+        <article>
+          <i class="bi bi-truck"></i>
+          <div><span>1. Proveedor</span><strong>Origen validado</strong></div>
+        </article>
+        <article>
+          <i class="bi bi-upc-scan"></i>
+          <div><span>2. Producto</span><strong>SKU y lote</strong></div>
+        </article>
+        <article>
+          <i class="bi bi-box-arrow-in-down"></i>
+          <div><span>3. Entrada</span><strong>Stock actualizado</strong></div>
+        </article>
+      </section>
 
       <section class="report-summary-grid sales-history-summary-grid">
         <article class="report-summary-card">
@@ -65,10 +84,10 @@
       </section>
 
       <section class="two-col-grid wide-left">
-        <article class="module-card">
+        <article class="module-card purchase-entry-card">
           <div class="module-head">
             <div><h2>Nueva compra</h2><p>Cada registro aumenta stock del producto seleccionado y deja trazabilidad.</p></div>
-            <a class="btn btn-outline-secondary" href="proveedores.html">Ver proveedores</a>
+            <span class="purchase-mode-pill"><i class="bi bi-clipboard2-check"></i> Recepcion</span>
           </div>
           <div class="client-grid purchases-badge-grid">
             <div class="list-card" id="purchaseSupplierBadge"><strong>Proveedor pendiente</strong><span>Selecciona un proveedor para vincular la compra.</span></div>
@@ -93,14 +112,14 @@
               <div class="form-field"><label for="purchaseDate">Fecha</label><input id="purchaseDate" class="form-control" type="date"></div>
             </div>
             <div class="form-field"><label for="purchaseNotes">Observaciones</label><textarea id="purchaseNotes" class="form-control" rows="3" placeholder="Factura, condiciones o comentario de ingreso"></textarea></div>
-            <div class="checkout-row">
-              <button class="btn btn-brand" id="purchaseSaveButton" type="submit">Registrar compra</button>
-              <button class="btn btn-outline-secondary" id="purchaseResetButton" type="button">Limpiar</button>
+            <div class="checkout-row purchase-actions-row">
+              <button class="btn btn-brand" id="purchaseSaveButton" type="submit"><i class="bi bi-check2-circle"></i> Registrar compra</button>
+              <button class="btn btn-outline-secondary" id="purchaseResetButton" type="button"><i class="bi bi-eraser"></i> Limpiar</button>
             </div>
           </form>
         </article>
 
-        <article class="module-card">
+        <article class="module-card purchase-history-card">
           <div class="module-head">
             <div><h2>Historico de compras</h2><p>Consulta rapido por proveedor, producto o lote.</p></div>
           </div>

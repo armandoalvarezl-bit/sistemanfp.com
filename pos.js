@@ -560,6 +560,7 @@ function updateSummary() {
 }
 
 function buildTicketHtml(sale) {
+  const receiptTicketNumber = formatTicketNumberForReceipt(sale.ticketNumber);
   const itemsHtml = sale.items
     .map(
       (item) => `
@@ -576,7 +577,7 @@ function buildTicketHtml(sale) {
       <div class="ticket-center">
         <h3>Farma POS</h3>
         <p class="ticket-muted">NIT 900.000.000-1</p>
-        <p class="ticket-muted">Factura/Ticket ${sale.ticketNumber}</p>
+        <p class="ticket-muted">Factura/Ticket ${receiptTicketNumber}</p>
         <p>${sale.date} ${sale.time}</p>
       </div>
       <hr>
@@ -595,6 +596,17 @@ function buildTicketHtml(sale) {
       <p class="ticket-center ticket-muted">Gracias por tu compra</p>
     </div>
   `;
+}
+
+function formatTicketNumberForReceipt(ticketNumber) {
+  const text = String(ticketNumber || "").trim();
+  const legacyMatch = text.match(/^FAC-(\d{8})-(\d+)$/i);
+  if (legacyMatch) return `T-${String(Number(legacyMatch[2]) || 1).padStart(3, "0")}`;
+  const modernMatch = text.match(/^T-(\d{6,8})-(\d+)$/i);
+  if (modernMatch) return `T-${String(Number(modernMatch[2]) || 1).padStart(3, "0")}`;
+  const sequenceMatch = text.match(/(\d+)$/);
+  if (sequenceMatch) return `T-${String(Number(sequenceMatch[1]) || 1).padStart(3, "0")}`;
+  return text;
 }
 
 function generateSaleTicketNumber() {
@@ -856,6 +868,5 @@ resetDataButton?.addEventListener("click", () => {
 
 refreshAll();
 switchView("home");
-
 
 

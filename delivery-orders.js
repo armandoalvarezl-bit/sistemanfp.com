@@ -1,4 +1,4 @@
-const DELIVERY_API_URL = "https://script.google.com/macros/s/AKfycby36Qa2zAAwPYRfKKMqoIwV0RRvICzGtbiWt0rl2PeDZjxNTEtnhVVnLimO1jZBPgbt5Q/exec";
+const DELIVERY_API_URL = "https://script.google.com/macros/s/AKfycbyvW8h4oaP1vVnKX0-p095l9BUhhWmuTAkpaN9X828yJ5hvLTHZDVuVD9B8wAMZUYhvDw/exec";
 const DELIVERY_TAX_RATE = 0.19;
 const DELIVERY_ORDER_STATUS_KEY = "farmapos_delivery_order_status";
 const DELIVERY_LAST_TRACKING_KEY = "farmapos_delivery_last_tracking";
@@ -129,6 +129,7 @@ function normalizeDeliverySale(sale = {}) {
     subtotal: Number(sale.subtotal || 0),
     tax: Number(sale.tax || sale.impuesto || 0),
     total: Number(sale.total || 0),
+    status: String(sale.status || sale.estado || "ACTIVA").trim().toUpperCase() === "ANULADA" ? "ANULADA" : "ACTIVA",
     deliveryStatus,
     deliveryUpdatedAt: String(sale.deliveryUpdatedAt || sale.domicilio_actualizado_en || "").trim(),
     items: Array.isArray(items) ? items : []
@@ -165,9 +166,18 @@ function setStoredDeliveryStatus(id, status) {
 }
 
 function getDeliveryOrderStatus(order) {
+  if (String(order?.status || "").trim().toUpperCase() === "ANULADA") return "cancelado";
   const remoteStatus = String(order?.deliveryStatus || "").trim().toLowerCase();
   if (remoteStatus) return remoteStatus;
   return getStoredDeliveryStatuses()[order.id] || "pendiente";
+}
+
+function isDeliveryOrderCanceled(order) {
+  return getDeliveryOrderStatus(order) === "cancelado" || String(order?.status || "").trim().toUpperCase() === "ANULADA";
+}
+
+function getDeliveryOrderEffectiveTotal(order) {
+  return isDeliveryOrderCanceled(order) ? 0 : Number(order?.total || 0);
 }
 
 function getDeliveryStatusLabel(status) {
@@ -263,39 +273,39 @@ function buildDeliveryGuideHtml(order) {
         * { box-sizing: border-box; }
         body {
           margin: 0;
-          padding: 28px;
+          padding: 24px;
           color: #111827;
-          background: #eef4f8;
+          background: #edf3f8;
           font-family: Arial, sans-serif;
         }
         .guide {
-          max-width: 760px;
+          max-width: 820px;
           margin: 0 auto;
           overflow: hidden;
-          border: 1px solid #d5dee9;
-          border-radius: 18px;
+          border: 1px solid #cfd9e6;
+          border-radius: 12px;
           background: #fff;
-          box-shadow: 0 24px 60px rgba(17, 36, 58, .16);
+          box-shadow: 0 22px 54px rgba(17, 36, 58, .14);
         }
         .guide-head {
           display: grid;
           grid-template-columns: 1fr auto;
           gap: 18px;
-          padding: 22px;
+          padding: 20px 22px;
           color: #fff;
-          background: linear-gradient(135deg, #10243f, #0a8c67);
+          background: #10243f;
         }
         .brand {
           display: grid;
-          grid-template-columns: 72px minmax(0, 1fr);
+          grid-template-columns: 68px minmax(0, 1fr);
           gap: 14px;
           align-items: center;
         }
         .brand-logo,
         .brand-monogram {
-          width: 72px;
-          height: 72px;
-          border-radius: 16px;
+          width: 68px;
+          height: 68px;
+          border-radius: 10px;
           background: rgba(255,255,255,.96);
         }
         .brand-logo {
@@ -334,17 +344,21 @@ function buildDeliveryGuideHtml(order) {
         }
         .status {
           align-self: start;
-          padding: 9px 13px;
-          border: 1px solid rgba(255,255,255,.42);
+          padding: 9px 12px;
+          border: 1px solid rgba(255,255,255,.34);
           border-radius: 999px;
-          background: rgba(255,255,255,.12);
+          background: rgba(255,255,255,.1);
           color: #fff;
           font-weight: 900;
           text-transform: uppercase;
           white-space: nowrap;
         }
         .guide-code {
-          padding: 18px 22px;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 18px;
+          align-items: center;
+          padding: 16px 22px;
           border-bottom: 1px solid #e3e9f1;
           background: #f8fbff;
         }
@@ -360,8 +374,20 @@ function buildDeliveryGuideHtml(order) {
           margin-top: 3px;
           color: #10243f;
           font-family: "Courier New", monospace;
-          font-size: 28px;
+          font-size: 26px;
           letter-spacing: .04em;
+          overflow-wrap: anywhere;
+        }
+        .route-chip {
+          padding: 10px 12px;
+          border: 1px solid #d7e2ee;
+          border-radius: 10px;
+          color: #0a6b55;
+          background: #eefaf6;
+          font-size: 12px;
+          font-weight: 900;
+          text-transform: uppercase;
+          white-space: nowrap;
         }
         .guide-grid {
           display: grid;
@@ -370,7 +396,7 @@ function buildDeliveryGuideHtml(order) {
         }
         .box {
           min-height: 96px;
-          padding: 16px;
+          padding: 15px 16px;
           border-right: 1px solid #e3e9f1;
         }
         .box:nth-child(2n) { border-right: 0; }
@@ -390,7 +416,7 @@ function buildDeliveryGuideHtml(order) {
           border-collapse: collapse;
         }
         th, td {
-          padding: 10px 12px;
+          padding: 11px 14px;
           border-bottom: 1px solid #d7dee8;
           text-align: left;
           font-size: 13px;
@@ -407,6 +433,28 @@ function buildDeliveryGuideHtml(order) {
           padding: 18px 22px 22px;
           background: #fbfdff;
         }
+        .checklist {
+          margin: 0 0 14px;
+          padding: 14px 22px;
+          border-bottom: 1px solid #e3e9f1;
+          background: #fff;
+        }
+        .checklist span {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin: 0 14px 6px 0;
+          color: #33465f;
+          font-size: 12px;
+          font-weight: 800;
+        }
+        .checklist i {
+          display: inline-block;
+          width: 12px;
+          height: 12px;
+          border: 1px solid #91a0b2;
+          border-radius: 3px;
+        }
         .signature {
           min-height: 76px;
           border: 1px dashed #607086;
@@ -418,6 +466,7 @@ function buildDeliveryGuideHtml(order) {
           text-align: center;
         }
         .barcode {
+          position: relative;
           display: grid;
           place-items: center;
           min-height: 76px;
@@ -426,6 +475,37 @@ function buildDeliveryGuideHtml(order) {
           font-size: 18px;
           font-weight: 800;
           letter-spacing: .08em;
+        }
+        .barcode::before {
+          content: "";
+          position: absolute;
+          inset: 12px 16px auto;
+          height: 32px;
+          opacity: .22;
+          background: repeating-linear-gradient(90deg, #10243f 0 3px, transparent 3px 7px, #10243f 7px 9px, transparent 9px 13px);
+        }
+        .barcode span {
+          position: relative;
+          margin-top: 36px;
+        }
+        @media (max-width: 680px) {
+          body { padding: 12px; }
+          .guide-head,
+          .guide-code,
+          .guide-grid,
+          .guide-foot {
+            grid-template-columns: 1fr;
+          }
+          .box {
+            border-right: 0;
+            border-bottom: 1px solid #e3e9f1;
+          }
+          .box:last-child {
+            border-bottom: 0;
+          }
+          .route-chip {
+            width: fit-content;
+          }
         }
         @media print {
           body { padding: 0; background: #fff; }
@@ -449,8 +529,11 @@ function buildDeliveryGuideHtml(order) {
           <div class="status">${deliveryEscape(getDeliveryStatusLabel(status))}</div>
         </section>
         <section class="guide-code">
-          <span>Codigo de guia</span>
-          <strong>${deliveryEscape(guideNumber)}</strong>
+          <div>
+            <span>Codigo de guia</span>
+            <strong>${deliveryEscape(guideNumber)}</strong>
+          </div>
+          <div class="route-chip">Ruta domicilio</div>
         </section>
         <section class="guide-grid">
           <div class="box">
@@ -478,9 +561,14 @@ function buildDeliveryGuideHtml(order) {
           <thead><tr><th>Producto</th><th>Codigo</th><th>Cant.</th></tr></thead>
           <tbody>${itemsHtml || `<tr><td colspan="3">Sin productos</td></tr>`}</tbody>
         </table>
+        <section class="checklist">
+          <span><i></i> Pedido verificado</span>
+          <span><i></i> Pago confirmado</span>
+          <span><i></i> Entrega completa</span>
+        </section>
         <section class="guide-foot">
           <div class="signature">Firma recibido</div>
-          <div class="barcode">${deliveryEscape(guideNumber)}</div>
+          <div class="barcode"><span>${deliveryEscape(guideNumber)}</span></div>
         </section>
       </main>
       <script>window.addEventListener("load", () => window.print());</script>
@@ -941,6 +1029,28 @@ async function submitDeliveryOrder(event) {
 }
 
 async function updateDeliveryOrderStatusInApi(orderId, status) {
+  if (status === "cancelado") {
+    const data = await deliveryFetchJson(DELIVERY_API_URL, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify({
+        action: "anular",
+        id: orderId,
+        saleId: orderId,
+        annulledBy: "Modulo domicilios",
+        annulledReason: "Pedido de domicilio cancelado"
+      })
+    });
+
+    if (Array.isArray(data.sales)) {
+      deliveryState.sales = data.sales.map(normalizeDeliverySale);
+    }
+    return normalizeDeliverySale(data.sale || {});
+  }
+
   const data = await deliveryFetchJson(DELIVERY_API_URL, {
     method: "POST",
     headers: {
@@ -981,14 +1091,15 @@ function renderDeliveryOrdersBackoffice() {
   const pending = allOrders.filter((order) => !["entregado", "cancelado"].includes(getDeliveryOrderStatus(order))).length;
   if (metricPending) metricPending.textContent = String(pending);
   if (metricOrders) metricOrders.textContent = String(allOrders.length);
-  if (metricRevenue) metricRevenue.textContent = deliveryCurrency(allOrders.reduce((sum, order) => sum + Number(order.total || 0), 0));
+  if (metricRevenue) metricRevenue.textContent = deliveryCurrency(allOrders.reduce((sum, order) => sum + getDeliveryOrderEffectiveTotal(order), 0));
 
   list.innerHTML = orders.length
     ? orders.map((order) => {
       const meta = getDeliveryMeta(order);
     const status = getDeliveryOrderStatus(order);
+      const effectiveTotal = getDeliveryOrderEffectiveTotal(order);
       const itemSummary = order.items.map((item) => `${item.quantity || 1} x ${item.name}`).join(", ");
-      const whatsapp = meta.phone ? `https://wa.me/57${meta.phone.replace(/\D/g, "").replace(/^57/, "")}?text=${encodeURIComponent(`Hola ${order.clientName}, recibimos tu pedido ${order.ticketNumber}. Total ${deliveryCurrency(order.total)}.`)}` : "";
+      const whatsapp = meta.phone ? `https://wa.me/57${meta.phone.replace(/\D/g, "").replace(/^57/, "")}?text=${encodeURIComponent(`Hola ${order.clientName}, recibimos tu pedido ${order.ticketNumber}. Total ${deliveryCurrency(effectiveTotal)}.`)}` : "";
       return `
         <article class="delivery-order-card is-${deliveryEscape(status)}">
           <div class="delivery-order-head">
@@ -1004,7 +1115,7 @@ function renderDeliveryOrdersBackoffice() {
             <div><span>Cliente</span><strong>${deliveryEscape(order.clientName)}</strong></div>
             <div><span>Telefono</span><strong>${deliveryEscape(meta.phone || "Sin telefono")}</strong></div>
             <div><span>Direccion</span><strong>${deliveryEscape(meta.address || "Sin direccion")}</strong></div>
-            <div><span>Total</span><strong>${deliveryCurrency(order.total)}</strong></div>
+            <div><span>Total</span><strong>${deliveryCurrency(effectiveTotal)}</strong>${isDeliveryOrderCanceled(order) ? "<em>Anulado</em>" : ""}</div>
           </div>
           <p>${deliveryEscape(itemSummary || "Sin productos")}</p>
           ${meta.notes ? `<p class="delivery-order-note">${deliveryEscape(meta.notes)}</p>` : ""}

@@ -18,7 +18,7 @@ var SUPPORT_TICKETS_SHEET_NAME = 'SoporteTickets';
 var SUPPORT_MESSAGES_SHEET_NAME = 'SoporteMensajes';
 var REQUIRED_HEADERS = ['id', 'sku', 'nombre', 'categoria', 'precio', 'stock', 'lote', 'fecha_vencimiento', 'laboratorio', 'registro_invima', 'codigo_barras', 'descripcion', 'imagen_url', 'activo'];
 var LEGACY_SALES_HEADERS = ['id', 'ticket_numero', 'fecha', 'hora', 'cliente_nombre', 'cliente_documento', 'metodo_pago', 'recibido', 'cambio', 'subtotal', 'impuesto', 'total', 'items_json', 'creado_en'];
-var SALES_HEADERS = ['id', 'ticket_numero', 'fecha', 'hora', 'cliente_nombre', 'cliente_documento', 'metodo_pago', 'recibido', 'cambio', 'subtotal', 'impuesto', 'total', 'items_json', 'creado_en', 'puntos_usados', 'descuento_puntos', 'puntos_ganados'];
+var SALES_HEADERS = ['id', 'ticket_numero', 'fecha', 'hora', 'cliente_nombre', 'cliente_documento', 'metodo_pago', 'recibido', 'cambio', 'subtotal', 'impuesto', 'total', 'items_json', 'creado_en', 'puntos_usados', 'descuento_puntos', 'puntos_ganados', 'estado', 'anulado_en', 'anulado_por', 'motivo_anulacion', 'domicilio_estado', 'domicilio_actualizado_en'];
 var USER_HEADERS = ['Id', 'Nombre', 'Usuario', 'contraseña', 'Estado'];
 var WITHDRAWALS_HEADERS = ['id', 'retiro_numero', 'fecha', 'hora', 'monto', 'motivo', 'cajero_usuario', 'cajero_nombre', 'supervisor_usuario', 'supervisor_nombre', 'creado_en'];
 var CASH_CLOSURES_HEADERS = ['id', 'cierre_numero', 'fecha', 'creado_en', 'usuario', 'apertura', 'ventas_efectivo', 'ventas_tarjeta', 'ventas_transferencia', 'retiros_total', 'ajuste_manual', 'efectivo_contado', 'efectivo_esperado', 'diferencia', 'transacciones', 'ventas_total', 'unidades', 'observaciones', 'ventas_json'];
@@ -460,6 +460,14 @@ function doPost(e) {
         total: sales.length,
         sales: sales
       });
+    }
+
+    if (action === 'anular') {
+      return jsonResponse_(annulSaleWeb_(payload));
+    }
+
+    if (action === 'update_delivery_order_status') {
+      return jsonResponse_(updateDeliveryOrderStatusWeb_(payload.id || payload.saleId || payload.sale_id, payload.status || payload.estado));
     }
 
     if (action === 'register_withdrawal') {
@@ -1166,6 +1174,12 @@ function normalizeStoredSale_(sale) {
     redeemedPoints: Number(sale.puntos_usados || 0),
     loyaltyDiscount: Number(sale.descuento_puntos || 0),
     earnedPoints: Number(sale.puntos_ganados || 0),
+    status: String(sale.estado || 'ACTIVA').trim().toUpperCase() === 'ANULADA' ? 'ANULADA' : 'ACTIVA',
+    annulledAt: String(sale.anulado_en || '').trim(),
+    annulledBy: String(sale.anulado_por || '').trim(),
+    annulledReason: String(sale.motivo_anulacion || '').trim(),
+    deliveryStatus: String(sale.domicilio_estado || '').trim(),
+    deliveryUpdatedAt: String(sale.domicilio_actualizado_en || '').trim(),
     items: Array.isArray(items) ? items : []
   };
 }
@@ -1238,6 +1252,12 @@ function normalizeIncomingSale_(sale) {
     redeemedPoints: Number(sale.redeemedPoints || sale.pointsUsed || 0),
     loyaltyDiscount: Number(sale.loyaltyDiscount || sale.discountFromPoints || 0),
     earnedPoints: Number(sale.earnedPoints || 0),
+    status: String(sale.status || sale.estado || 'ACTIVA').trim().toUpperCase() === 'ANULADA' ? 'ANULADA' : 'ACTIVA',
+    annulledAt: String(sale.annulledAt || sale.anulado_en || '').trim(),
+    annulledBy: String(sale.annulledBy || sale.anulado_por || '').trim(),
+    annulledReason: String(sale.annulledReason || sale.motivo_anulacion || '').trim(),
+    deliveryStatus: normalizeDeliveryStatus_(sale.deliveryStatus || sale.domicilio_estado || ''),
+    deliveryUpdatedAt: String(sale.deliveryUpdatedAt || sale.domicilio_actualizado_en || '').trim(),
     items: Array.isArray(sale.items) ? sale.items : []
   };
 }
@@ -1938,11 +1958,142 @@ function appendSale_(sheet, sale) {
     createdAt,
     normalized.redeemedPoints,
     normalized.loyaltyDiscount,
-    normalized.earnedPoints
+    normalized.earnedPoints,
+    normalized.status,
+    normalized.annulledAt,
+    normalized.annulledBy,
+    normalized.annulledReason,
+    normalized.deliveryStatus,
+    normalized.deliveryUpdatedAt
   ];
 
   sheet.appendRow(rowValues);
   return normalized;
+}
+
+function normalizeDeliveryStatus_(status) {
+  var value = String(status || '').trim().toLowerCase().replace(/\s+/g, '_');
+  if (value === 'camino') value = 'en_camino';
+  var allowed = ['pendiente', 'preparando', 'despachado', 'en_camino', 'entregado', 'cancelado'];
+  return allowed.indexOf(value) >= 0 ? value : '';
+}
+
+function findSaleRow_(sheet, saleId) {
+  var target = String(saleId || '').trim();
+  if (!target) return null;
+
+  var values = sheet.getDataRange().getValues();
+  if (values.length < 2) return null;
+  var headers = values[0].map(function(header) {
+    return String(header).trim();
+  });
+
+  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
+    var row = values[rowIndex];
+    var sale = normalizeStoredSale_(rowToItem_(headers, row));
+    if (sale.id === target || sale.ticketNumber === target) {
+      return {
+        rowNumber: rowIndex + 1,
+        headers: headers,
+        values: row,
+        sale: sale
+      };
+    }
+  }
+  return null;
+}
+
+function writeSaleFields_(sheet, rowNumber, headers, fields) {
+  Object.keys(fields).forEach(function(field) {
+    var index = headers.indexOf(field);
+    if (index >= 0) {
+      sheet.getRange(rowNumber, index + 1).setValue(fields[field]);
+    }
+  });
+}
+
+function annulSaleWeb_(payload) {
+  var sheet = getSalesSheet_();
+  var match = findSaleRow_(sheet, payload.saleId || payload.id || payload.ticketNumber || payload.ticket_numero);
+  if (!match) throw new Error('No se encontro la venta para anular.');
+  if (match.sale.status === 'ANULADA') throw new Error('La venta ya estaba anulada.');
+
+  var supervisor = String(payload.annulledBy || payload.anulado_por || 'Supervisor').trim() || 'Supervisor';
+  var reason = String(payload.annulledReason || payload.motivo_anulacion || '').trim();
+  if (!reason) throw new Error('El motivo de anulacion es obligatorio.');
+
+  var annulledAt = new Date().toISOString();
+  writeSaleFields_(sheet, match.rowNumber, match.headers, {
+    estado: 'ANULADA',
+    anulado_en: annulledAt,
+    anulado_por: supervisor,
+    motivo_anulacion: reason,
+    domicilio_estado: 'cancelado',
+    domicilio_actualizado_en: annulledAt
+  });
+
+  var inventorySheet = getInventorySheet_();
+  var restoreItems = (match.sale.items || []).map(function(item) {
+    return {
+      id: item.id || item.inventario_id || '',
+      sku: item.sku || '',
+      quantity: Number(item.quantity || item.cantidad || 0)
+    };
+  }).filter(function(item) {
+    return (item.id || item.sku) && item.quantity > 0;
+  });
+  if (restoreItems.length) receiveOrder_(inventorySheet, restoreItems);
+
+  var sales = readSalesItems_(sheet);
+  var savedSale = null;
+  sales.forEach(function(sale) {
+    if (sale.id === match.sale.id) savedSale = sale;
+  });
+
+  return {
+    ok: true,
+    action: 'anular',
+    updated_at: annulledAt,
+    sale: savedSale || match.sale,
+    sales: sales,
+    inventory: readInventoryItems_(inventorySheet)
+  };
+}
+
+function updateDeliveryOrderStatusWeb_(saleId, status) {
+  var normalizedStatus = normalizeDeliveryStatus_(status);
+  if (!normalizedStatus) throw new Error('Estado de domicilio no valido.');
+  if (normalizedStatus === 'cancelado') {
+    return annulSaleWeb_({
+      saleId: saleId,
+      annulledBy: 'Modulo domicilios',
+      annulledReason: 'Pedido de domicilio cancelado'
+    });
+  }
+
+  var sheet = getSalesSheet_();
+  var match = findSaleRow_(sheet, saleId);
+  if (!match) throw new Error('No se encontro el pedido de domicilio.');
+
+  var updatedAt = new Date().toISOString();
+  writeSaleFields_(sheet, match.rowNumber, match.headers, {
+    domicilio_estado: normalizedStatus,
+    domicilio_actualizado_en: updatedAt
+  });
+
+  var sales = readSalesItems_(sheet);
+  var savedSale = null;
+  sales.forEach(function(sale) {
+    if (sale.id === match.sale.id) savedSale = sale;
+  });
+
+  return {
+    ok: true,
+    action: 'update_delivery_order_status',
+    updated_at: updatedAt,
+    sale: savedSale || match.sale,
+    sales: sales
+  };
 }
 
 function appendWithdrawal_(sheet, withdrawal) {

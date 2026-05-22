@@ -31,8 +31,8 @@ const WEB_DB_API_STORAGE_KEY = "farmapos_web_db_api_url";
 const DAILY_WELCOME_STORAGE_KEY = "farmapos_daily_welcome_seen";
 const SESSION_WELCOME_STORAGE_KEY = "farmapos_session_welcome_seen";
 const DASHBOARD_LAUNCH_BANNER_STORAGE_KEY = "farmapos_dashboard_launch_banner_seen_v1";
-const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycby36Qa2zAAwPYRfKKMqoIwV0RRvICzGtbiWt0rl2PeDZjxNTEtnhVVnLimO1jZBPgbt5Q/exec";
-const API_URL = "https://script.google.com/macros/s/AKfycby36Qa2zAAwPYRfKKMqoIwV0RRvICzGtbiWt0rl2PeDZjxNTEtnhVVnLimO1jZBPgbt5Q/exec";
+const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbyvW8h4oaP1vVnKX0-p095l9BUhhWmuTAkpaN9X828yJ5hvLTHZDVuVD9B8wAMZUYhvDw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyvW8h4oaP1vVnKX0-p095l9BUhhWmuTAkpaN9X828yJ5hvLTHZDVuVD9B8wAMZUYhvDw/exec";
 const desktopDb = window.farmaposDesktop?.db || null;
 const ONLINE_EXCEL_ONLY = true;
 const browserStorage = window.sessionStorage;
@@ -1750,10 +1750,16 @@ function formatTicketNumberForReceipt(ticketNumber) {
   const text = String(ticketNumber || "").trim();
   const legacyMatch = text.match(/^FAC-(\d{8})-(\d+)$/i);
   if (legacyMatch) {
-    const shortDateCode = legacyMatch[1].slice(2);
     const sequence = String(Number(legacyMatch[2]) || 1).padStart(3, "0");
-    return `T-${shortDateCode}-${sequence}`;
+    return `T-${sequence}`;
   }
+  const modernMatch = text.match(/^T-(\d{6,8})-(\d+)$/i);
+  if (modernMatch) {
+    const sequence = String(Number(modernMatch[2]) || 1).padStart(3, "0");
+    return `T-${sequence}`;
+  }
+  const sequence = getSaleTicketSequence(text);
+  if (sequence > 0) return `T-${String(sequence).padStart(3, "0")}`;
   return text;
 }
 
@@ -3989,7 +3995,7 @@ function getMonthLabel(monthKey) {
 function buildMonthClosureModel(monthKey = getCurrentMonthKey()) {
   const normalizedMonth = String(monthKey || getCurrentMonthKey()).slice(0, 7);
   const sales = getActiveSales().filter((sale) => isDateInMonth(sale.date, normalizedMonth));
-  const annulledSales = state.sales.filter((sale) => sale.status === "ANULADA" && isDateInMonth(sale.date, normalizedMonth));
+  const annulledSales = state.sales.filter((sale) => isSaleCanceledForTotals(sale) && isDateInMonth(sale.date, normalizedMonth));
   const purchases = state.purchases.filter((purchase) => isDateInMonth(purchase.date, normalizedMonth));
   const returns = state.returns.filter((entry) => isDateInMonth(entry.date, normalizedMonth));
   const withdrawals = state.cashWithdrawals.filter((withdrawal) => isDateInMonth(withdrawal.date, normalizedMonth));
@@ -6059,12 +6065,33 @@ function normalizeSaleRecord(sale, index) {
     status: String(sale?.status || "ACTIVA").trim().toUpperCase() === "ANULADA" ? "ANULADA" : "ACTIVA",
     annulledAt: String(sale?.annulledAt || "").trim(),
     annulledBy: String(sale?.annulledBy || "").trim(),
-    annulledReason: String(sale?.annulledReason || "").trim()
+    annulledReason: String(sale?.annulledReason || "").trim(),
+    deliveryStatus: normalizeSaleDeliveryStatus(sale?.deliveryStatus || sale?.domicilio_estado || ""),
+    deliveryUpdatedAt: String(sale?.deliveryUpdatedAt || sale?.domicilio_actualizado_en || "").trim()
   };
 }
 
+function normalizeSaleDeliveryStatus(value = "") {
+  const normalized = String(value || "").trim().toLowerCase().replace(/\s+/g, "_");
+  if (normalized === "camino") return "en_camino";
+  return normalized;
+}
+
+function isSaleCanceledForTotals(sale) {
+  return String(sale?.status || "").trim().toUpperCase() === "ANULADA"
+    || normalizeSaleDeliveryStatus(sale?.deliveryStatus) === "cancelado";
+}
+
+function getSaleStatusKey(sale) {
+  return isSaleCanceledForTotals(sale) ? "ANULADA" : "ACTIVA";
+}
+
+function getSaleEffectiveTotal(sale) {
+  return isSaleCanceledForTotals(sale) ? 0 : Number(sale?.total || 0);
+}
+
 function getActiveSales() {
-  return state.sales.filter((sale) => sale.status !== "ANULADA");
+  return state.sales.filter((sale) => !isSaleCanceledForTotals(sale));
 }
 
 function applyRemoteSalesState(sales) {
@@ -8152,10 +8179,13 @@ function renderPurchasesPage() {
   if (list) {
     list.innerHTML = filteredPurchases.length
       ? filteredPurchases.map((purchase) => `
-        <article class="sales-history-item">
-          <div class="sales-history-head">
-            <strong>${escapeHtml(purchase.productName)} - ${formatCurrency(purchase.total)}</strong>
-            <span class="sale-state-pill is-active">${purchase.quantity} und</span>
+        <article class="sales-history-item purchase-history-item">
+          <div class="sales-history-head purchase-history-head">
+            <div>
+              <strong>${escapeHtml(purchase.productName)}</strong>
+              <span>${formatCurrency(purchase.total)} / ${formatCurrency(purchase.unitCost || 0)} c/u</span>
+            </div>
+            <span class="sale-state-pill is-active"><i class="bi bi-box-arrow-in-down"></i>${purchase.quantity} und</span>
           </div>
           <div class="sales-history-meta-grid">
             <span><i class="bi bi-truck"></i>${escapeHtml(purchase.supplierName || "Sin proveedor")}</span>
@@ -9127,8 +9157,8 @@ function renderSalesHistory() {
   if (!container) return;
 
   const filteredSales = getFilteredSalesHistoryItems();
-  const activeSales = state.sales.filter((sale) => sale.status !== "ANULADA");
-  const annulledSales = state.sales.filter((sale) => sale.status === "ANULADA");
+  const activeSales = getActiveSales();
+  const annulledSales = state.sales.filter((sale) => isSaleCanceledForTotals(sale));
   const revenue = activeSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const average = activeSales.length ? Math.round(revenue / activeSales.length) : 0;
 
@@ -9141,10 +9171,12 @@ function renderSalesHistory() {
     ? filteredSales.map((sale) => {
         const units = sale.items.reduce((sum, item) => sum + item.quantity, 0);
         const itemsPreview = sale.items.slice(0, 3).map((item) => `${item.quantity}x ${item.name}`).join(" - ");
-        return `<article class="sales-history-item ${sale.status === "ANULADA" ? "is-annulled" : ""}">
+        const saleStatus = getSaleStatusKey(sale);
+        const effectiveTotal = getSaleEffectiveTotal(sale);
+        return `<article class="sales-history-item ${saleStatus === "ANULADA" ? "is-annulled" : ""}">
           <div class="sales-history-head">
-            <strong>${escapeHtml(sale.ticketNumber)} - ${formatCurrency(sale.total)}</strong>
-            <span class="sale-state-pill ${sale.status === "ANULADA" ? "is-annulled" : "is-active"}">${sale.status === "ANULADA" ? "Anulada" : "Activa"}</span>
+            <strong>${escapeHtml(sale.ticketNumber)} - ${formatCurrency(effectiveTotal)}</strong>
+            <span class="sale-state-pill ${saleStatus === "ANULADA" ? "is-annulled" : "is-active"}">${saleStatus === "ANULADA" ? "Anulada" : "Activa"}</span>
           </div>
           <div class="sales-history-meta-grid">
             <span><i class="bi bi-person"></i>${escapeHtml(sale.clientName)}${sale.clientDocument ? ` - ${escapeHtml(sale.clientDocument)}` : ""}</span>
@@ -9153,12 +9185,12 @@ function renderSalesHistory() {
             <span><i class="bi bi-bag-check"></i>${units} producto(s)</span>
           </div>
           <div class="sales-history-items-preview">${escapeHtml(itemsPreview || "Sin detalle de productos")}</div>
-          ${sale.status === "ANULADA" ? `<span>Anulada por ${escapeHtml(sale.annulledBy || "Supervisor")} - ${escapeHtml(sale.annulledReason || "Sin motivo")}.</span>` : ""}
+          ${saleStatus === "ANULADA" ? `<span>Anulada por ${escapeHtml(sale.annulledBy || "Supervisor")} - ${escapeHtml(sale.annulledReason || "Pedido cancelado")}.</span>` : ""}
           <div class="sales-history-actions">
             <button class="btn btn-sm btn-outline-secondary sales-ticket-view" type="button" data-sale-id="${escapeHtml(sale.id)}">Ver ticket</button>
             <button class="btn btn-sm btn-outline-secondary sales-ticket-print" type="button" data-sale-id="${escapeHtml(sale.id)}">Imprimir</button>
             <button class="btn btn-sm btn-outline-secondary sales-ticket-download" type="button" data-sale-id="${escapeHtml(sale.id)}">Descargar</button>
-            ${sale.status !== "ANULADA" ? `<button class="btn btn-sm btn-outline-danger sales-ticket-annul" type="button" data-sale-id="${escapeHtml(sale.id)}">Anular venta</button>` : ""}
+            ${saleStatus !== "ANULADA" ? `<button class="btn btn-sm btn-outline-danger sales-ticket-annul" type="button" data-sale-id="${escapeHtml(sale.id)}">Anular venta</button>` : ""}
           </div>
         </article>`;
       }).join("")
@@ -10682,7 +10714,7 @@ function getFilteredSalesHistoryItems() {
       sale.clientName,
       sale.clientDocument
     ].some((value) => normalizeSearchTerm(value).includes(search));
-    const matchesStatus = statusFilter === "all" || sale.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || getSaleStatusKey(sale) === statusFilter;
     const matchesPayment = paymentFilter === "all" || sale.paymentMethod === paymentFilter;
     const matchesDate = !dateFilter || normalizeInputDateValue(sale.date) === dateFilter;
     return matchesSearch && matchesStatus && matchesPayment && matchesDate;
@@ -10694,8 +10726,8 @@ function renderSalesHistory() {
   if (!container) return;
 
   const filteredSales = getFilteredSalesHistoryItems();
-  const activeSales = state.sales.filter((sale) => sale.status !== "ANULADA");
-  const annulledSales = state.sales.filter((sale) => sale.status === "ANULADA");
+  const activeSales = getActiveSales();
+  const annulledSales = state.sales.filter((sale) => isSaleCanceledForTotals(sale));
   const revenue = activeSales.reduce((sum, sale) => sum + Number(sale.total || 0), 0);
   const average = activeSales.length ? Math.round(revenue / activeSales.length) : 0;
 
@@ -10708,10 +10740,12 @@ function renderSalesHistory() {
     ? filteredSales.map((sale) => {
         const units = sale.items.reduce((sum, item) => sum + item.quantity, 0);
         const itemsPreview = sale.items.slice(0, 3).map((item) => `${item.quantity}x ${item.name}`).join(" - ");
-        return `<article class="sales-history-item ${sale.status === "ANULADA" ? "is-annulled" : ""}">
+        const saleStatus = getSaleStatusKey(sale);
+        const effectiveTotal = getSaleEffectiveTotal(sale);
+        return `<article class="sales-history-item ${saleStatus === "ANULADA" ? "is-annulled" : ""}">
           <div class="sales-history-head">
-            <strong>${escapeHtml(sale.ticketNumber)} - ${formatCurrency(sale.total)}</strong>
-            <span class="sale-state-pill ${sale.status === "ANULADA" ? "is-annulled" : "is-active"}">${sale.status === "ANULADA" ? "Anulada" : "Activa"}</span>
+            <strong>${escapeHtml(sale.ticketNumber)} - ${formatCurrency(effectiveTotal)}</strong>
+            <span class="sale-state-pill ${saleStatus === "ANULADA" ? "is-annulled" : "is-active"}">${saleStatus === "ANULADA" ? "Anulada" : "Activa"}</span>
           </div>
           <div class="sales-history-meta-grid">
             <span><i class="bi bi-person"></i>${escapeHtml(sale.clientName)}${sale.clientDocument ? ` - ${escapeHtml(sale.clientDocument)}` : ""}</span>
@@ -10720,12 +10754,12 @@ function renderSalesHistory() {
             <span><i class="bi bi-bag-check"></i>${units} producto(s)</span>
           </div>
           <div class="sales-history-items-preview">${escapeHtml(itemsPreview || "Sin detalle de productos")}</div>
-          ${sale.status === "ANULADA" ? `<span>Anulada por ${escapeHtml(sale.annulledBy || "Supervisor")} - ${escapeHtml(sale.annulledReason || "Sin motivo")}.</span>` : ""}
+          ${saleStatus === "ANULADA" ? `<span>Anulada por ${escapeHtml(sale.annulledBy || "Supervisor")} - ${escapeHtml(sale.annulledReason || "Pedido cancelado")}.</span>` : ""}
           <div class="sales-history-actions">
             <button class="btn btn-sm btn-outline-secondary sales-ticket-view" type="button" data-sale-id="${escapeHtml(sale.id)}">Ver ticket</button>
             <button class="btn btn-sm btn-outline-secondary sales-ticket-print" type="button" data-sale-id="${escapeHtml(sale.id)}">Imprimir</button>
             <button class="btn btn-sm btn-outline-secondary sales-ticket-download" type="button" data-sale-id="${escapeHtml(sale.id)}">Descargar</button>
-            ${sale.status !== "ANULADA" ? `<button class="btn btn-sm btn-outline-danger sales-ticket-annul" type="button" data-sale-id="${escapeHtml(sale.id)}">Anular venta</button>` : ""}
+            ${saleStatus !== "ANULADA" ? `<button class="btn btn-sm btn-outline-danger sales-ticket-annul" type="button" data-sale-id="${escapeHtml(sale.id)}">Anular venta</button>` : ""}
           </div>
         </article>`;
       }).join("")
@@ -10957,8 +10991,9 @@ function addToCart(card) {
 function buildTicketQrPayload(sale) {
   const pharmacy = getTicketPharmacyProfile();
   const items = (sale.items || []).map((item) => `${item.quantity}x ${item.name}`).join(" | ");
-  const isAnnulled = String(sale.status || "").trim().toUpperCase() === "ANULADA";
+  const isAnnulled = isSaleCanceledForTotals(sale);
   const receiptTicketNumber = formatTicketNumberForReceipt(sale.ticketNumber || sale.id || "");
+  const effectiveTotal = getSaleEffectiveTotal(sale);
 
   return [
     `Empresa: ${pharmacy.name || "Sistema Facturacion"}`,
@@ -10970,7 +11005,7 @@ function buildTicketQrPayload(sale) {
     `Pago: ${sale.paymentMethod || "Efectivo"}`,
     `Subtotal: ${sale.subtotal || 0}`,
     `IVA: ${sale.tax || 0}`,
-    `Total: ${sale.total || 0}`,
+    `Total: ${effectiveTotal}`,
     `Items: ${items || "Sin detalle"}`,
     isAnnulled ? `Anulada por: ${sale.annulledBy || "Supervisor"}` : "",
     isAnnulled ? `Motivo: ${sale.annulledReason || "Sin motivo"}` : ""
@@ -10982,13 +11017,20 @@ function buildTicketQrUrl(sale) {
   return `https://quickchart.io/qr?size=180&margin=1&text=${encodeURIComponent(payload)}`;
 }
 
+function buildTicketQrFallbackUrl(sale) {
+  const payload = buildTicketQrPayload(sale);
+  return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(payload)}`;
+}
+
 function buildTicketHtml(sale) {
   const pharmacy = getTicketPharmacyProfile();
-  const isAnnulled = String(sale.status || "").trim().toUpperCase() === "ANULADA";
+  const isAnnulled = isSaleCanceledForTotals(sale);
+  const effectiveTotal = getSaleEffectiveTotal(sale);
   const receiptTicketNumber = formatTicketNumberForReceipt(sale.ticketNumber);
   const pharmacyLocation = [pharmacy.address, pharmacy.city].filter(Boolean).join(" | ");
   const pharmacyContact = [pharmacy.phone, pharmacy.email].filter(Boolean).join(" | ");
   const qrUrl = buildTicketQrUrl(sale);
+  const qrFallbackUrl = buildTicketQrFallbackUrl(sale);
   const ticketBrandVisual = pharmacy.logoUrl
     ? `<img class="ticket-brand-logo" src="${escapeHtml(pharmacy.logoUrl)}" alt="Logo ${escapeHtml(pharmacy.name)}">`
     : "FP";
@@ -11062,13 +11104,13 @@ function buildTicketHtml(sale) {
         ${sale.promoDiscount ? `<div class="ticket-row"><span>Promociones</span><strong>- ${formatCurrency(sale.promoDiscount)}</strong></div>` : ""}
         <div class="ticket-row"><span>IVA</span><strong>${formatCurrency(sale.tax)}</strong></div>
         ${sale.loyaltyDiscount ? `<div class="ticket-row"><span>Descuento por puntos</span><strong>- ${formatCurrency(sale.loyaltyDiscount)}</strong></div>` : ""}
-        <div class="ticket-row ticket-total"><span>Total</span><strong>${formatCurrency(sale.total)}</strong></div>
+        <div class="ticket-row ticket-total"><span>Total</span><strong>${formatCurrency(effectiveTotal)}</strong></div>
         ${sale.redeemedPoints ? `<div class="ticket-row"><span>Puntos redimidos</span><strong>${sale.redeemedPoints}</strong></div>` : ""}
         ${Number(sale.earnedPoints || 0) > 0 ? `<div class="ticket-row"><span>Puntos ganados</span><strong>${sale.earnedPoints}</strong></div>` : ""}
       </section>
 
       <section class="ticket-qr-block">
-        <img class="ticket-qr-image" src="${escapeHtml(qrUrl)}" alt="${escapeHtml(isAnnulled ? "QR con resumen de la venta anulada" : "QR con resumen de la venta")}">
+        <img class="ticket-qr-image" src="${escapeHtml(qrUrl)}" data-qr-fallback="${escapeHtml(qrFallbackUrl)}" onerror="if(this.dataset.qrFallback&&this.src!==this.dataset.qrFallback){this.src=this.dataset.qrFallback}else{this.style.display='none'}" alt="${escapeHtml(isAnnulled ? "QR con resumen de la venta anulada" : "QR con resumen de la venta")}">
         <div class="ticket-qr-copy">
           <strong>${escapeHtml(isAnnulled ? "Ticket anulado" : "Comprobante digital")}</strong>
           <span>${escapeHtml(isAnnulled ? "El resumen QR indica que este comprobante fue anulado." : "Escanea para validar el resumen de la compra.")}</span>
@@ -11453,8 +11495,26 @@ function buildTicketPrintableDocument(ticketHtml, title = "") {
       <div class="ticket-paper">${ticketHtml}</div>
       <script>
         window.addEventListener("load", function() {
-          window.print();
-          window.setTimeout(function() { window.close(); }, 300);
+          var images = Array.prototype.slice.call(document.images || []);
+          var pending = images.filter(function(image) { return !image.complete; });
+          var printNow = function() {
+            window.print();
+            window.setTimeout(function() { window.close(); }, 300);
+          };
+          if (!pending.length) {
+            printNow();
+            return;
+          }
+          var remaining = pending.length;
+          var done = function() {
+            remaining -= 1;
+            if (remaining <= 0) printNow();
+          };
+          window.setTimeout(printNow, 2500);
+          pending.forEach(function(image) {
+            image.addEventListener("load", done, { once: true });
+            image.addEventListener("error", done, { once: true });
+          });
         });
       <\/script>
     </body>
