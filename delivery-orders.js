@@ -1,5 +1,5 @@
-const DELIVERY_API_URL = "https://script.google.com/macros/s/AKfycbyvW8h4oaP1vVnKX0-p095l9BUhhWmuTAkpaN9X828yJ5hvLTHZDVuVD9B8wAMZUYhvDw/exec";
-const DELIVERY_TAX_RATE = 0.19;
+const DELIVERY_API_URL = "https://script.google.com/macros/s/AKfycbxWsxVwFfRjK8NGFj7IhblLL06QII-W-OWnt00-21JqEGA2iKV5luz65Pry_xtUMja9jg/exec";
+const DELIVERY_TAX_RATE = 0;
 const DELIVERY_ORDER_STATUS_KEY = "farmapos_delivery_order_status";
 const DELIVERY_LAST_TRACKING_KEY = "farmapos_delivery_last_tracking";
 const DELIVERY_PHARMACY_PROFILE_KEY = "farmapos_pharmacy_profile";

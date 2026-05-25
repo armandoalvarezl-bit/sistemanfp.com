@@ -20,7 +20,7 @@ const STORAGE_KEYS = {
   dianTestResult: "farmapos_dian_test_result"
 };
 
-const TAX_RATE = 0.19;
+const TAX_RATE = 0;
 const LOYALTY_POINTS_PER_COP = 1000;
 const CASH_WITHDRAWAL_WARNING_LIMIT = 400000;
 const LOYALTY_REDEMPTION_VALUE_PER_POINT = 1;
@@ -31,8 +31,8 @@ const WEB_DB_API_STORAGE_KEY = "farmapos_web_db_api_url";
 const DAILY_WELCOME_STORAGE_KEY = "farmapos_daily_welcome_seen";
 const SESSION_WELCOME_STORAGE_KEY = "farmapos_session_welcome_seen";
 const DASHBOARD_LAUNCH_BANNER_STORAGE_KEY = "farmapos_dashboard_launch_banner_seen_v1";
-const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbyvW8h4oaP1vVnKX0-p095l9BUhhWmuTAkpaN9X828yJ5hvLTHZDVuVD9B8wAMZUYhvDw/exec";
-const API_URL = "https://script.google.com/macros/s/AKfycbyvW8h4oaP1vVnKX0-p095l9BUhhWmuTAkpaN9X828yJ5hvLTHZDVuVD9B8wAMZUYhvDw/exec";
+const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbxWsxVwFfRjK8NGFj7IhblLL06QII-W-OWnt00-21JqEGA2iKV5luz65Pry_xtUMja9jg/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxWsxVwFfRjK8NGFj7IhblLL06QII-W-OWnt00-21JqEGA2iKV5luz65Pry_xtUMja9jg/exec";
 const desktopDb = window.farmaposDesktop?.db || null;
 const ONLINE_EXCEL_ONLY = true;
 const browserStorage = window.sessionStorage;
@@ -4144,8 +4144,8 @@ function buildMonthClosureHtml(model) {
       <section class="month-close-ledger">
         <article>
           <div class="month-close-section-title">Relación financiera</div>
-          <div class="month-close-row"><span>Subtotal vendido</span><strong>${formatCurrency(model.subtotal)}</strong><small>Antes de impuestos/descuentos</small></div>
-          <div class="month-close-row"><span>Impuestos</span><strong>${formatCurrency(model.tax)}</strong><small>IVA registrado</small></div>
+          <div class="month-close-row"><span>Subtotal vendido</span><strong>${formatCurrency(model.subtotal)}</strong><small>Antes de descuentos</small></div>
+          <div class="month-close-row"><span>Impuestos</span><strong>${formatCurrency(model.tax)}</strong><small>Sin IVA aplicado</small></div>
           <div class="month-close-row"><span>Descuentos</span><strong>${formatCurrency(model.discounts)}</strong><small>Promociones y puntos</small></div>
           <div class="month-close-row"><span>Devoluciones</span><strong>${formatCurrency(model.returnTotal)}</strong><small>${model.returnUnits} unidades</small></div>
           <div class="month-close-row"><span>Retiros de caja</span><strong>${formatCurrency(model.withdrawalTotal)}</strong><small>${model.withdrawals.length} retiros</small></div>
@@ -11004,7 +11004,7 @@ function buildTicketQrPayload(sale) {
     `Documento: ${sale.clientDocument || "Consumidor final"}`,
     `Pago: ${sale.paymentMethod || "Efectivo"}`,
     `Subtotal: ${sale.subtotal || 0}`,
-    `IVA: ${sale.tax || 0}`,
+    Number(sale.tax || 0) > 0 ? `Impuesto: ${sale.tax || 0}` : "",
     `Total: ${effectiveTotal}`,
     `Items: ${items || "Sin detalle"}`,
     isAnnulled ? `Anulada por: ${sale.annulledBy || "Supervisor"}` : "",
@@ -11102,7 +11102,7 @@ function buildTicketHtml(sale) {
       <section class="ticket-totals">
         <div class="ticket-row"><span>Subtotal</span><strong>${formatCurrency(sale.subtotal)}</strong></div>
         ${sale.promoDiscount ? `<div class="ticket-row"><span>Promociones</span><strong>- ${formatCurrency(sale.promoDiscount)}</strong></div>` : ""}
-        <div class="ticket-row"><span>IVA</span><strong>${formatCurrency(sale.tax)}</strong></div>
+        ${sale.tax ? `<div class="ticket-row"><span>Impuesto</span><strong>${formatCurrency(sale.tax)}</strong></div>` : ""}
         ${sale.loyaltyDiscount ? `<div class="ticket-row"><span>Descuento por puntos</span><strong>- ${formatCurrency(sale.loyaltyDiscount)}</strong></div>` : ""}
         <div class="ticket-row ticket-total"><span>Total</span><strong>${formatCurrency(effectiveTotal)}</strong></div>
         ${sale.redeemedPoints ? `<div class="ticket-row"><span>Puntos redimidos</span><strong>${sale.redeemedPoints}</strong></div>` : ""}

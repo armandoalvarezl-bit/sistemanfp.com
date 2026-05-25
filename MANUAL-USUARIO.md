@@ -201,12 +201,12 @@ Despues de vender:
 
 ## 7.7 Impuestos
 
-La configuracion actual calcula IVA del 19%.
+La configuracion actual no aplica IVA en las ventas.
 
 En cada venta se generan:
 
 - Subtotal
-- IVA
+- Impuestos en cero
 - Descuento por puntos, si aplica
 - Total final
 
@@ -246,7 +246,7 @@ El ticket incluye:
 - Metodo de pago.
 - Valor recibido y cambio si aplica.
 - Detalle de productos.
-- Subtotal, IVA, descuento y total.
+- Subtotal, descuento y total.
 - Puntos usados y ganados.
 - Codigo QR con resumen de la venta.
 

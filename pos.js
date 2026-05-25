@@ -5,7 +5,7 @@
   lastTicket: "farmapos_last_ticket",
 };
 
-const TAX_RATE = 0.19;
+const TAX_RATE = 0;
 
 const viewTitles = {
   home: { label: "Inicio", title: "Panel general" },
@@ -590,7 +590,7 @@ function buildTicketHtml(sale) {
       ${itemsHtml}
       <hr>
       <div class="ticket-total-line"><span>Subtotal</span><strong>${formatCurrency(sale.subtotal)}</strong></div>
-      <div class="ticket-total-line"><span>IVA</span><strong>${formatCurrency(sale.tax)}</strong></div>
+      ${sale.tax ? `<div class="ticket-total-line"><span>Impuesto</span><strong>${formatCurrency(sale.tax)}</strong></div>` : ""}
       <div class="ticket-total-line"><strong>Total</strong><strong>${formatCurrency(sale.total)}</strong></div>
       <div class="ticket-qr">QR</div>
       <p class="ticket-center ticket-muted">Gracias por tu compra</p>
@@ -868,5 +868,4 @@ resetDataButton?.addEventListener("click", () => {
 
 refreshAll();
 switchView("home");
-
 

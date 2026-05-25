@@ -37,7 +37,7 @@ El sistema está tardando demasiado en validar el acceso (timeout de 15 segundos
 ### ✓ Paso 2: Verificar Google Apps Script
 **URL en pos.html (línea 6):**
 ```
-https://script.google.com/macros/s/AKfycbyvW8h4oaP1vVnKX0-p095l9BUhhWmuTAkpaN9X828yJ5hvLTHZDVuVD9B8wAMZUYhvDw/exec
+https://script.google.com/macros/s/AKfycbxWsxVwFfRjK8NGFj7IhblLL06QII-W-OWnt00-21JqEGA2iKV5luz65Pry_xtUMja9jg/exec
 ```
 
 **Prueba:**

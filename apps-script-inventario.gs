@@ -1247,7 +1247,7 @@ function normalizeIncomingSale_(sale) {
     cashReceived: Number(sale.cashReceived || 0),
     change: Number(sale.change || 0),
     subtotal: Number(sale.subtotal || 0),
-    tax: Number(sale.tax || 0),
+    tax: 0,
     total: Number(sale.total || 0),
     redeemedPoints: Number(sale.redeemedPoints || sale.pointsUsed || 0),
     loyaltyDiscount: Number(sale.loyaltyDiscount || sale.discountFromPoints || 0),
