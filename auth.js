@@ -4,6 +4,7 @@ const PHARMACY_PROFILE_STORAGE_KEY = "farmapos_pharmacy_profile";
 const WEB_DB_API_STORAGE_KEY = "farmapos_web_db_api_url";
 const AUTH_DEBUG_STORAGE_KEY = "farmapos_auth_debug";
 const AUTH_PROMO_SEEN_KEY = "farmapos_auth_promo_seen";
+const PASSWORD_RECOVERY_STORAGE_KEY = "farmapos_password_recovery";
 const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const AUTH_REQUEST_TIMEOUT_MS = 45000;
 const desktopDb = window.farmaposDesktop?.db || null;
@@ -166,6 +167,41 @@ function getStoredPharmacyProfile() {
     return JSON.parse(persistentStorage.getItem(PHARMACY_PROFILE_STORAGE_KEY) || "null");
   } catch {
     return null;
+  }
+}
+
+function getPasswordRecoveryState() {
+  try {
+    const state = JSON.parse(persistentStorage.getItem(PASSWORD_RECOVERY_STORAGE_KEY) || "null");
+    const updatedAt = new Date(state?.updatedAt || 0).getTime();
+    if (!state?.username || !updatedAt || Date.now() - updatedAt > 5 * 60 * 1000) {
+      clearPasswordRecoveryState();
+      return null;
+    }
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+function savePasswordRecoveryState(state = {}) {
+  try {
+    persistentStorage.setItem(PASSWORD_RECOVERY_STORAGE_KEY, JSON.stringify({
+      username: String(state.username || "").trim(),
+      step: String(state.step || "request").trim(),
+      code: String(state.code || "").trim(),
+      updatedAt: new Date().toISOString()
+    }));
+  } catch {
+    // El proceso puede continuar aunque el navegador no permita almacenamiento local.
+  }
+}
+
+function clearPasswordRecoveryState() {
+  try {
+    persistentStorage.removeItem(PASSWORD_RECOVERY_STORAGE_KEY);
+  } catch {
+    // Ignoramos errores de limpieza del almacenamiento.
   }
 }
 
@@ -477,6 +513,17 @@ function ensureAuthFeedbackUi() {
   document.querySelector('[data-auth-recovery-close="true"]')?.addEventListener("click", closePasswordRecoveryModal);
   document.getElementById("authRecoveryRequestForm")?.addEventListener("submit", submitPasswordRecoveryRequest);
   document.getElementById("authRecoveryConfirmForm")?.addEventListener("submit", submitPasswordRecoveryConfirm);
+  document.getElementById("authRecoveryUsername")?.addEventListener("input", (event) => {
+    savePasswordRecoveryState({ username: event.target.value, step: "request" });
+  });
+  document.getElementById("authRecoveryCode")?.addEventListener("input", (event) => {
+    const modal = document.getElementById("authRecoveryModal");
+    savePasswordRecoveryState({
+      username: modal?.dataset?.recoveryUsername || "",
+      step: "confirm",
+      code: event.target.value
+    });
+  });
   document.getElementById("toggleRecoveryPassword")?.addEventListener("click", () => {
     const input = document.getElementById("authRecoveryNewPassword");
     const button = document.getElementById("toggleRecoveryPassword");
@@ -637,6 +684,7 @@ function getNormalizedRole(value, options = {}) {
   const hasCompanyContext = Boolean(companyId || licenseCode);
   const isGlobalAdminUser = ["admin", "administrador", "operador"].includes(username);
 
+  if (role.includes("desarroll") || role.includes("creador") || role.includes("interno") || role.includes("admin_general")) return "admin";
   if (role.includes("operador")) return "operador";
   if (
     role.includes("admin_empresa") ||
@@ -914,6 +962,33 @@ function setPasswordRecoveryStatus(message, variant = "info") {
 function closePasswordRecoveryModal() {
   const modal = document.getElementById("authRecoveryModal");
   if (modal) modal.hidden = true;
+  clearPasswordRecoveryState();
+}
+
+function restorePasswordRecoveryState() {
+  const state = getPasswordRecoveryState();
+  if (!state?.username) return;
+
+  const modal = document.getElementById("authRecoveryModal");
+  const usernameInput = document.getElementById("authRecoveryUsername");
+  const targetNode = document.getElementById("authRecoveryTarget");
+  const codeInput = document.getElementById("authRecoveryCode");
+  if (!modal || !usernameInput) return;
+
+  usernameInput.value = state.username;
+  if (state.step === "confirm") {
+    modal.dataset.recoveryUsername = state.username;
+    if (targetNode) targetNode.textContent = state.username;
+    if (codeInput) codeInput.value = state.code || "";
+    setPasswordRecoveryStep("confirm");
+    modal.hidden = false;
+    window.setTimeout(() => codeInput?.focus(), 50);
+    return;
+  }
+
+  setPasswordRecoveryStep("request");
+  modal.hidden = false;
+  window.setTimeout(() => usernameInput.focus(), 50);
 }
 
 function openPasswordRecoveryModal() {
@@ -926,6 +1001,7 @@ function openPasswordRecoveryModal() {
   if (!modal || !usernameInput) return;
 
   modal.dataset.recoveryUsername = "";
+  savePasswordRecoveryState({ username: currentUsername, step: "request" });
   usernameInput.value = currentUsername;
   if (codeInput) codeInput.value = "";
   if (passwordInput) {
@@ -955,6 +1031,7 @@ async function submitPasswordRecoveryRequest(event) {
     await requestPasswordReset(username);
     if (modal) modal.dataset.recoveryUsername = username;
     if (targetNode) targetNode.textContent = username;
+    savePasswordRecoveryState({ username, step: "confirm" });
     setPasswordRecoveryStep("confirm");
     setPasswordRecoveryStatus("Codigo temporal enviado al correo registrado. Vence en 5 minutos.", "success");
     window.setTimeout(() => document.getElementById("authRecoveryCode")?.focus(), 50);
@@ -999,19 +1076,17 @@ async function submitPasswordRecoveryConfirm(event) {
   }
   try {
     setPasswordRecoveryStatus("Validando codigo temporal...", "info");
+    savePasswordRecoveryState({ username, step: "confirm", code });
     await confirmPasswordReset(username, code, newPassword);
+    clearPasswordRecoveryState();
     document.querySelector('[data-recovery-step-pill="done"]')?.classList.add("is-active");
-    setPasswordRecoveryStatus("Contrasena actualizada correctamente.", "success");
     const usernameInput = document.getElementById("loginUsername");
     const loginPasswordInput = document.getElementById("loginPassword");
     if (usernameInput) usernameInput.value = username;
-    window.setTimeout(() => {
-      closePasswordRecoveryModal();
-      if (loginPasswordInput) {
-        loginPasswordInput.value = "";
-        loginPasswordInput.focus();
-      }
-    }, 1100);
+    closePasswordRecoveryModal();
+    if (loginPasswordInput) loginPasswordInput.value = "";
+    await showLoginDialog("Contrasena actualizada", "El cambio se guardo correctamente. Ya puedes validar el acceso con tu nueva contrasena.", "success");
+    if (loginPasswordInput) loginPasswordInput.focus();
   } catch (error) {
     setPasswordRecoveryStatus(error.message || "No fue posible cambiar la contrasena.", "danger");
   } finally {
@@ -1401,6 +1476,8 @@ async function setupLoginPage() {
       setSubmitting(false);
     }
   });
+
+  restorePasswordRecoveryState();
 }
 
 setupLoginPage();

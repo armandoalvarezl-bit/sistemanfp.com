@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbxWsxVwFfRjK8NGFj7IhblLL06QII-W-OWnt00-21JqEGA2iKV5luz65Pry_xtUMja9jg/exec">
+  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbwqaQ2LBi6FM-d8QzoK4GmFNWMfM5DxlPFSF2Bp6KazKzz3voU8_DxM78j08WYCVM7R-A/exec">
   <title>Sistema Facturacion | Licencias</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -92,7 +92,7 @@
         </article>
 
         <article class="module-card licensing-license-card">
-          <div class="module-head"><div><h2>Licencias</h2><p>Emite codigos robustos, activa, bloquea o renueva por periodos quincenales, mensuales o anuales.</p></div></div>
+          <div class="module-head"><div><h2>Licencias</h2><p>Emite codigos robustos, activa, bloquea o renueva por periodos mensuales, trimestrales, anuales o indefinidos.</p></div></div>
           <form id="licensingLicenseForm" class="settings-form-stack">
             <input id="licensingLicenseId" type="hidden">
             <div class="settings-form-grid">
@@ -108,9 +108,10 @@
               <label class="settings-field">
                 <span>Plan</span>
                 <select id="licensingLicensePlan" class="form-select">
-                  <option value="QUINCENAL">Quincenal</option>
                   <option value="MENSUAL">Mensual</option>
+                  <option value="TRIMESTRAL">Trimestral</option>
                   <option value="ANUAL" selected>Anual</option>
+                  <option value="INDEFINIDA">Indefinida</option>
                 </select>
               </label>
               <label class="settings-field"><span>Max. equipos</span><input id="licensingLicenseMaxDevices" type="number" min="1" step="1" value="1"></label>
@@ -170,6 +171,7 @@
                 <label class="settings-field">
                   <span>Rol</span>
                   <select id="userAdminRole" class="form-select">
+                    <option value="desarrollador">Desarrollador interno</option>
                     <option value="cajero">Cajero</option>
                     <option value="supervisor">Supervisor</option>
                     <option value="admin_empresa">Administrador tienda</option>

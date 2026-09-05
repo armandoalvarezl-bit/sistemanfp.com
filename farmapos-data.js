@@ -31,8 +31,8 @@ const WEB_DB_API_STORAGE_KEY = "farmapos_web_db_api_url";
 const DAILY_WELCOME_STORAGE_KEY = "farmapos_daily_welcome_seen";
 const SESSION_WELCOME_STORAGE_KEY = "farmapos_session_welcome_seen";
 const DASHBOARD_LAUNCH_BANNER_STORAGE_KEY = "farmapos_dashboard_launch_banner_seen_v1";
-const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbxWsxVwFfRjK8NGFj7IhblLL06QII-W-OWnt00-21JqEGA2iKV5luz65Pry_xtUMja9jg/exec";
-const API_URL = "https://script.google.com/macros/s/AKfycbxWsxVwFfRjK8NGFj7IhblLL06QII-W-OWnt00-21JqEGA2iKV5luz65Pry_xtUMja9jg/exec";
+const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbwqaQ2LBi6FM-d8QzoK4GmFNWMfM5DxlPFSF2Bp6KazKzz3voU8_DxM78j08WYCVM7R-A/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwqaQ2LBi6FM-d8QzoK4GmFNWMfM5DxlPFSF2Bp6KazKzz3voU8_DxM78j08WYCVM7R-A/exec";
 const desktopDb = window.farmaposDesktop?.db || null;
 const ONLINE_EXCEL_ONLY = true;
 const browserStorage = window.sessionStorage;
@@ -2149,7 +2149,7 @@ function normalizeUserAdminRecord(user) {
     name: String(user?.name || "").trim(),
     username: String(user?.username || "").trim(),
     password: "",
-    role: ["admin", "operador", "admin_empresa", "supervisor", "cajero"].includes(normalizedRole)
+    role: ["admin", "operador", "desarrollador", "creador", "interno", "admin_general", "admin_empresa", "supervisor", "cajero"].includes(normalizedRole)
       ? normalizedRole
       : "cajero",
     active: String(user?.active || "SI").trim().toUpperCase() === "NO" ? "NO" : "SI",
@@ -2473,7 +2473,8 @@ function getSupportStatusClass(status) {
 
 function normalizeLicensePlanValue(value) {
   const normalized = String(value || "").trim().toUpperCase();
-  if (normalized.includes("QUINC")) return "QUINCENAL";
+  if (normalized.includes("INDEFIN")) return "INDEFINIDA";
+  if (normalized.includes("TRIM")) return "TRIMESTRAL";
   if (normalized.includes("MENS")) return "MENSUAL";
   return "ANUAL";
 }
@@ -2485,10 +2486,12 @@ function calculateLicenseExpiryByPlan(plan, fromDate = new Date()) {
   }
 
   const normalizedPlan = normalizeLicensePlanValue(plan);
-  if (normalizedPlan === "QUINCENAL") {
-    baseDate.setDate(baseDate.getDate() + 15);
+  if (normalizedPlan === "INDEFINIDA") {
+    return "";
   } else if (normalizedPlan === "MENSUAL") {
     baseDate.setMonth(baseDate.getMonth() + 1);
+  } else if (normalizedPlan === "TRIMESTRAL") {
+    baseDate.setMonth(baseDate.getMonth() + 3);
   } else {
     baseDate.setFullYear(baseDate.getFullYear() + 1);
   }
@@ -2508,7 +2511,7 @@ function normalizeLicenseCodeValue(value = "") {
 function generateRobustLicenseCodeValue(companyName = "", plan = "ANUAL") {
   const companyToken = normalizeLicenseCodeValue(companyName).replaceAll("-", "").slice(0, 6) || "NUBEFA";
   const normalizedPlan = normalizeLicensePlanValue(plan);
-  const planToken = normalizedPlan === "QUINCENAL" ? "QNC" : normalizedPlan === "MENSUAL" ? "MEN" : "ANL";
+  const planToken = normalizedPlan === "INDEFINIDA" ? "INF" : normalizedPlan === "TRIMESTRAL" ? "TRI" : normalizedPlan === "MENSUAL" ? "MEN" : "ANL";
   const yearToken = new Date().getFullYear();
   const entropyToken = crypto.randomUUID().replaceAll("-", "").slice(0, 12).toUpperCase();
   return normalizeLicenseCodeValue(`LIC-${companyToken}-${planToken}-${yearToken}-${entropyToken}`);
@@ -2564,6 +2567,7 @@ function getNormalizedSessionRole() {
     role = username === "admin" || username === "supervisor" ? "admin" : "cajero";
   }
 
+  if (role.includes("desarroll") || role.includes("creador") || role.includes("interno") || role.includes("admin_general")) return "admin";
   if (role.includes("operador")) return "operador";
   if (
     role.includes("admin_empresa") ||
@@ -9572,13 +9576,16 @@ function bindUserAdminEvents() {
       return;
     }
 
-    if (!payload.companyId) {
+    const internalRole = ["desarrollador", "creador", "interno", "admin_general"].some((value) => String(payload.role || "").toLowerCase().includes(value));
+    if (!payload.companyId && !internalRole) {
       await showInfoDialog("Debes seleccionar la empresa a la que pertenece el usuario.", {
         title: "Empresa requerida",
         variant: "warn"
       });
       return;
     }
+
+    if (internalRole) payload.companyId = "";
 
     try {
       await withLoading(async () => {
@@ -9876,7 +9883,8 @@ function getLicenseStatusBadgeClass(status) {
 
 function getLicensePlanLabel(plan) {
   const normalized = normalizeLicensePlanValue(plan);
-  if (normalized === "QUINCENAL") return "Quincenal";
+  if (normalized === "INDEFINIDA") return "Indefinida";
+  if (normalized === "TRIMESTRAL") return "Trimestral";
   if (normalized === "MENSUAL") return "Mensual";
   return "Anual";
 }

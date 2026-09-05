@@ -1470,6 +1470,18 @@ function getUserRowByUsername_(sheet, username) {
   return null;
 }
 
+function getUserPasswordColumn_(headers) {
+  var passwordHeaders = ['contrasena', 'Contraseña', 'contraseña', 'Contrasena', 'Password', 'password', 'Clave', 'clave'];
+  for (var i = 0; i < headers.length; i += 1) {
+    if (passwordHeaders.some(function(header) {
+      return normalizeHeaderKey_(headers[i]) === normalizeHeaderKey_(header);
+    })) {
+      return i + 1;
+    }
+  }
+  throw new Error('La hoja de usuarios no tiene una columna de contrasena valida.');
+}
+
 function getLoginAttemptState_(username) {
   var key = getLoginAttemptPropertyKey_(username);
   var raw = PropertiesService.getScriptProperties().getProperty(key);
@@ -1638,7 +1650,13 @@ function confirmPasswordResetWeb_(payload) {
   var sheet = getUsersSheet_();
   var match = getUserRowByUsername_(sheet, username);
   if (!match) throw new Error('Codigo invalido o vencido.');
-  sheet.getRange(match.rowIndex, 5).setValue(hashPasswordWeb_(newPassword));
+  var passwordColumn = getUserPasswordColumn_(match.headers);
+  var passwordHash = hashPasswordWeb_(newPassword);
+  sheet.getRange(match.rowIndex, passwordColumn).setValue(passwordHash);
+  SpreadsheetApp.flush();
+  if (String(sheet.getRange(match.rowIndex, passwordColumn).getValue() || '').trim() !== passwordHash) {
+    throw new Error('No se pudo guardar la nueva contrasena. Intenta nuevamente.');
+  }
   PropertiesService.getScriptProperties().deleteProperty(propertyKey);
   clearLoginFailureWeb_(username);
   return {
@@ -1693,12 +1711,13 @@ function authenticateUser_(sheet, payload) {
     }
     clearLoginFailureWeb_(username);
     if (passwordVerification.needsRehash) {
-      sheet.getRange(rowIndex + 1, 5).setValue(hashPasswordWeb_(password));
+      sheet.getRange(rowIndex + 1, getUserPasswordColumn_(headers)).setValue(hashPasswordWeb_(password));
     }
 
-    var role = normalizeUserRole_(getUserRole_(user, storedUsername), storedUsername);
+    var assignedRole = getUserRole_(user, storedUsername);
+    var role = normalizeUserRole_(assignedRole, storedUsername);
     var companyId = String(getUserField_(user, ['EmpresaId', 'empresa_id', 'empresaid', 'CompanyId', 'companyId', 'IdEmpresa']) || '').trim();
-    var isGlobalAdmin = (role === 'admin' || role === 'operador') && !companyId;
+    var isGlobalAdmin = isGlobalInternalRole_(assignedRole, role, companyId);
     var license = null;
 
     if (!isGlobalAdmin) {
@@ -1720,7 +1739,7 @@ function authenticateUser_(sheet, payload) {
       action: 'authenticate_user',
       user: {
         id: String(user.Id || '').trim(),
-        companyId: companyId,
+        companyId: isGlobalAdmin ? '' : companyId,
         username: storedUsername,
         name: String(user.Nombre || storedUsername).trim(),
         role: role,
@@ -1845,6 +1864,7 @@ function normalizeUserRole_(role, username) {
   var isGlobalAdminUser = normalizedUsername === 'admin' || normalizedUsername === 'administrador' || normalizedUsername === 'operador';
 
   if (!value) return 'cajero';
+  if (value.indexOf('desarroll') !== -1 || value.indexOf('creador') !== -1 || value.indexOf('interno') !== -1 || value.indexOf('admin_general') !== -1) return 'admin';
   if (
     value.indexOf('admin_empresa') !== -1 ||
     value.indexOf('empresa') !== -1 ||
@@ -1860,6 +1880,38 @@ function normalizeUserRole_(role, username) {
   if (value.indexOf('super') !== -1) return 'supervisor';
   if (value.indexOf('caj') !== -1 || value.indexOf('cash') !== -1 || value.indexOf('user') !== -1 || value.indexOf('usuario') !== -1 || value.indexOf('caja') !== -1) return 'cajero';
   return 'cajero';
+}
+
+function normalizeLicensePlanWeb_(value) {
+  var normalized = String(value || '').trim().toUpperCase();
+  if (normalized.indexOf('INDEFIN') !== -1) return 'INDEFINIDA';
+  if (normalized.indexOf('TRIM') !== -1) return 'TRIMESTRAL';
+  if (normalized.indexOf('MENS') !== -1) return 'MENSUAL';
+  return 'ANUAL';
+}
+
+function calculateLicenseExpiryWeb_(plan, requestedDate) {
+  var normalizedPlan = normalizeLicensePlanWeb_(plan);
+  if (normalizedPlan === 'INDEFINIDA') return '';
+  var date = requestedDate ? new Date(requestedDate) : new Date();
+  if (isNaN(date.getTime())) date = new Date();
+  if (normalizedPlan === 'MENSUAL') {
+    date.setMonth(date.getMonth() + 1);
+  } else if (normalizedPlan === 'TRIMESTRAL') {
+    date.setMonth(date.getMonth() + 3);
+  } else {
+    date.setFullYear(date.getFullYear() + 1);
+  }
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+function isGlobalInternalRole_(role, normalizedRole, companyId) {
+  var value = String(role || '').trim().toLowerCase();
+  if (!String(companyId || '').trim() && (normalizedRole === 'admin' || normalizedRole === 'operador')) return true;
+  return value.indexOf('desarroll') !== -1
+    || value.indexOf('creador') !== -1
+    || value.indexOf('interno') !== -1
+    || value.indexOf('admin_general') !== -1;
 }
 
 function normalizeSalesDateValue_(value) {
@@ -3334,7 +3386,7 @@ function saveUserWeb_(payload) {
     Nombre: String(payload.name || payload.Nombre || '').trim(),
     Usuario: username,
     contrasena: String(payload.password || payload.contrasena || '').trim() ? hashPasswordWeb_(payload.password || payload.contrasena || '') : currentPassword,
-    Rol: normalizeUserRole_(String(payload.role || payload.Rol || ''), username),
+    Rol: String(payload.role || payload.Rol || '').trim().toLowerCase(),
     Estado: String(payload.active || payload.Estado || 'SI').trim().toUpperCase() === 'NO' ? 'NO' : 'SI',
     CreadoEn: rowIndex > 0 ? String(sheet.getRange(rowIndex, 8).getValue() || '').trim() : new Date().toISOString()
   };
@@ -3506,10 +3558,12 @@ function saveLicenseWeb_(payload) {
     email: String(payload.email || '').trim(),
     equipo_id: rowIndex > 0 ? String(sheet.getRange(rowIndex, 9).getValue() || '').trim() : '',
     equipo_nombre: rowIndex > 0 ? String(sheet.getRange(rowIndex, 10).getValue() || '').trim() : '',
-    plan: String(payload.plan || 'ANUAL').trim().toUpperCase() || 'ANUAL',
+    plan: normalizeLicensePlanWeb_(payload.plan || 'ANUAL'),
     max_equipos: Math.max(1, Number(payload.maxDevices || payload.max_equipos || 1)),
     fecha_activacion: rowIndex > 0 ? String(sheet.getRange(rowIndex, 13).getValue() || '').trim() : '',
-    fecha_vencimiento: normalizeDateValue_(payload.expiresAt || payload.fecha_vencimiento || '') || Utilities.formatDate(new Date(new Date().setFullYear(new Date().getFullYear() + 1)), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+    fecha_vencimiento: normalizeLicensePlanWeb_(payload.plan || 'ANUAL') === 'INDEFINIDA'
+      ? ''
+      : normalizeDateValue_(payload.expiresAt || payload.fecha_vencimiento || '') || calculateLicenseExpiryWeb_(payload.plan || 'ANUAL'),
     estado: normalizeLicenseStatus_(payload.status || payload.estado || 'ACTIVA'),
     observaciones: String(payload.notes || payload.observaciones || '').trim(),
     creada_en: rowIndex > 0 ? String(sheet.getRange(rowIndex, 17).getValue() || '').trim() : now,
