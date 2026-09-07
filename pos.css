@@ -599,6 +599,50 @@ body.auth-body::after {
   }
 }
 
+/* Keep the internal login recovery and company-access actions readable. */
+body.auth-body[data-login-scope="internal"] .auth-card-login .auth-access-switch-bottom {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .6rem;
+  width: 100%;
+  margin-top: .35rem;
+}
+
+body.auth-body[data-login-scope="internal"] .auth-card-login .auth-access-link {
+  min-height: 42px;
+  padding: .65rem .75rem;
+  border: 1px solid #c9d8ea;
+  border-radius: .55rem;
+  background: #f4f8fd;
+  color: #0758b8 !important;
+  font-size: .82rem;
+  line-height: 1.25;
+  opacity: 1;
+  visibility: visible;
+}
+
+body.auth-body[data-login-scope="internal"] .auth-card-login .auth-access-link i,
+body.auth-body[data-login-scope="internal"] .auth-card-login .auth-access-link span {
+  color: inherit !important;
+  opacity: 1;
+  visibility: visible;
+}
+
+body.auth-body[data-login-scope="internal"] .auth-card-login .auth-access-link:hover,
+body.auth-body[data-login-scope="internal"] .auth-card-login .auth-access-link:focus-visible {
+  border-color: #1675d1;
+  background: #e8f2ff;
+  color: #043f88 !important;
+}
+
+@media (max-width: 520px) {
+  body.auth-body[data-login-scope="internal"] .auth-card-login .auth-access-switch-bottom {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Enterprise app polish - final visual layer */
 body:not(.auth-body) {
   color: #142033;
@@ -5643,14 +5687,79 @@ body[data-page="month-closure"] .month-close-topbar {
   align-items: center;
 }
 
+body[data-page="month-closure"] .month-close-topbar > .app-topbar-copy {
+  flex: 0 0 190px;
+  min-width: 190px;
+}
+
+body[data-page="month-closure"] .month-close-topbar h1 {
+  font-size: 1.8rem;
+  line-height: 1.08;
+  word-break: normal;
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+body[data-page="month-closure"] .month-close-topbar > .app-topbar-side {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+body[data-page="month-closure"] .month-close-topbar .system-status-strip {
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+body[data-page="month-closure"] .month-close-topbar .system-status-chip {
+  min-width: 0;
+  padding-left: .65rem;
+  padding-right: .65rem;
+}
+
 body[data-page="month-closure"] .month-close-controls {
-  min-width: 220px;
+  flex: 0 0 210px;
+  min-width: 210px;
   display: grid;
   gap: .35rem;
   padding: .75rem;
   border: 1px solid rgba(21,45,83,.1);
   border-radius: 8px;
   background: rgba(255,255,255,.72);
+}
+
+@media (max-width: 1180px) {
+  body[data-page="month-closure"] .month-close-topbar {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) 210px;
+  }
+
+  body[data-page="month-closure"] .month-close-topbar > .app-topbar-copy {
+    min-width: 0;
+  }
+
+  body[data-page="month-closure"] .month-close-topbar > .app-topbar-side {
+    grid-column: 1 / -1;
+  }
+
+  body[data-page="month-closure"] .month-close-topbar .system-status-strip {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 620px) {
+  body[data-page="month-closure"] .month-close-topbar {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page="month-closure"] .month-close-topbar h1 {
+    white-space: normal;
+  }
+
+  body[data-page="month-closure"] .month-close-controls {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 body[data-page="month-closure"] .month-close-controls label {
@@ -15895,4 +16004,111 @@ body.auth-body[data-login-scope="internal"]::before {
   .app-feedback-actions .btn {
     width: 100%;
   }
+}
+.cpanel-main {
+  background: #f4f7f9;
+}
+
+.cpanel-topbar {
+  align-items: flex-start;
+}
+
+.cpanel-subtitle {
+  color: #64717d;
+  display: block;
+  font-size: 0.94rem;
+  margin-top: 0.35rem;
+}
+
+.cpanel-denied {
+  margin-top: 1.5rem;
+}
+
+.cpanel-kpis {
+  margin-top: 0.5rem;
+}
+
+.cpanel-grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: minmax(0, 1.35fr) minmax(310px, 0.65fr);
+}
+
+.cpanel-side-stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.cpanel-head-icon {
+  color: #14756d;
+  font-size: 1.35rem;
+}
+
+.cpanel-user-list {
+  border-top: 1px solid #e2e8ec;
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+}
+
+.cpanel-status-list .status-row {
+  min-height: 42px;
+}
+
+.cpanel-tools-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1050px) {
+  .cpanel-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .cpanel-tools-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* Final text containment pass for compact controls and responsive layouts. */
+body :where(.app-main, .module-card, .list-card, .settings-tile, .kpi-card, .metric-tile, .app-topbar, .module-head, .status-row) {
+  min-width: 0;
+}
+
+body :where(h1, h2, h3, h4, p, span, strong, small, label, td, th) {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+body :where(h1, h2, h3, h4) {
+  word-break: normal;
+}
+
+body :where(.btn, button, .app-nav a, .settings-tile, .soft-pill, .state-pill) {
+  max-width: 100%;
+}
+
+body :where(.btn, button) span {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+body :where(input, select, textarea, .form-control, .form-select) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+[role="tooltip"], .tooltip, .tooltip-inner {
+  max-width: min(280px, calc(100vw - 24px));
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .app-main { padding-left: .85rem; padding-right: .85rem; }
+  .module-card, .list-card { max-width: 100%; }
+  .settings-inline-actions { flex-wrap: wrap; }
+  .settings-inline-actions > * { flex: 1 1 150px; }
 }

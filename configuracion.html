@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbwqaQ2LBi6FM-d8QzoK4GmFNWMfM5DxlPFSF2Bp6KazKzz3voU8_DxM78j08WYCVM7R-A/exec">
+  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbwGGUxjvdyJhrjPZwjwujFMxbWMDDRwIxpB-SHgkvxsjbj-CKWSTp75Jb_LVUndpmIGYA/exec">
   <title>Sistema Facturacion | Configuracion</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -49,7 +49,7 @@
           <div id="settingsProfileContent">
             <form id="pharmacyProfileForm" class="settings-form-stack">
               <div class="settings-form-grid">
-                <label class="settings-field wide"><span>Nombre comercial</span><input id="pharmacyName" type="text" placeholder="Tienda Central" maxlength="120"></label>
+                <label class="settings-field wide"><span>Nombre comercial</span><input id="pharmacyName" type="text" placeholder="Tienda Central" maxlength="120" required></label>
                 <div class="settings-field wide">
                   <span>Logo de la empresa</span>
                   <div class="settings-logo-uploader">
@@ -63,12 +63,12 @@
                     </div>
                   </div>
                 </div>
-                <label class="settings-field"><span>NIT / Documento</span><input id="pharmacyNit" type="text" placeholder="900123456-7" maxlength="40"></label>
-                <label class="settings-field"><span>Telefono</span><input id="pharmacyPhone" type="text" placeholder="3001234567" maxlength="30"></label>
-                <label class="settings-field"><span>Correo</span><input id="pharmacyEmail" type="email" placeholder="contacto@tienda.com" maxlength="120"></label>
-                <label class="settings-field wide"><span>Direccion</span><input id="pharmacyAddress" type="text" placeholder="Cra 10 # 20-30" maxlength="180"></label>
-                <label class="settings-field"><span>Ciudad</span><input id="pharmacyCity" type="text" placeholder="Bogota" maxlength="80"></label>
-                <label class="settings-field"><span>Responsable</span><input id="pharmacyManager" type="text" placeholder="Administrador principal" maxlength="120"></label>
+                <label class="settings-field"><span>NIT / Documento</span><input id="pharmacyNit" type="text" placeholder="900123456-7" maxlength="40" required></label>
+                <label class="settings-field"><span>Telefono</span><input id="pharmacyPhone" type="text" placeholder="3001234567" maxlength="30" required></label>
+                <label class="settings-field"><span>Correo</span><input id="pharmacyEmail" type="email" placeholder="contacto@tienda.com" maxlength="120" required></label>
+                <label class="settings-field wide"><span>Direccion</span><input id="pharmacyAddress" type="text" placeholder="Cra 10 # 20-30" maxlength="180" required></label>
+                <label class="settings-field"><span>Ciudad</span><input id="pharmacyCity" type="text" placeholder="Bogota" maxlength="80" required></label>
+                <label class="settings-field"><span>Responsable</span><input id="pharmacyManager" type="text" placeholder="Administrador principal" maxlength="120" required></label>
               </div>
               <div class="settings-form-actions">
                 <p class="settings-form-note" id="pharmacyProfileSummary">Sin datos registrados todavia.</p>
@@ -84,17 +84,17 @@
           <div class="module-head">
             <div>
               <h2>Panel desarrollador</h2>
-              <p>Configuracion interna, activaciones y herramientas de base de datos en linea del equipo desarrollador.</p>
+              <p>Credenciales internas, conexion y herramientas globales del equipo desarrollador.</p>
             </div>
           </div>
           <div class="settings-restricted-note">
             <i class="bi bi-diagram-3"></i>
-            <span>Desde este panel puedes registrar clientes, emitir licencias robustas, revisar equipos vinculados y mantener una instalacion limpia.</span>
+            <span>Desde este panel puedes administrar accesos de superadministradores, comprobar la sincronizacion y mantener el entorno.</span>
           </div>
           <div class="settings-form-stack">
-            <p class="settings-form-note">Espacio reservado para despliegue, soporte, limpieza de entornos y activacion controlada por el equipo desarrollador.</p>
+            <p class="settings-form-note">Espacio reservado para configuracion global y mantenimiento controlado por el equipo desarrollador.</p>
             <div class="settings-inline-actions">
-              <a class="btn btn-brand" href="licencias.html">Abrir activaciones</a>
+              <a class="btn btn-brand" href="cPanel.html">Abrir cPanel</a>
             </div>
             <div class="settings-restricted-note">
               <i class="bi bi-journal-text"></i>
@@ -116,7 +116,7 @@
           </div>
           <div class="settings-form-stack">
             <div class="settings-inline-actions">
-              <a class="btn btn-brand" href="system-update.html">Abrir panel de notificaciones</a>
+              <a class="btn btn-brand" href="cPanel.html?view=communications">Abrir panel de notificaciones</a>
             </div>
             <p class="settings-form-note">Este panel está separado para administrar avisos globales.</p>
           </div>

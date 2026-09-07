@@ -1,4 +1,4 @@
-const DELIVERY_API_URL = "https://script.google.com/macros/s/AKfycbwqaQ2LBi6FM-d8QzoK4GmFNWMfM5DxlPFSF2Bp6KazKzz3voU8_DxM78j08WYCVM7R-A/exec";
+const DELIVERY_API_URL = "https://script.google.com/macros/s/AKfycbwGGUxjvdyJhrjPZwjwujFMxbWMDDRwIxpB-SHgkvxsjbj-CKWSTp75Jb_LVUndpmIGYA/exec";
 const DELIVERY_TAX_RATE = 0;
 const DELIVERY_ORDER_STATUS_KEY = "farmapos_delivery_order_status";
 const DELIVERY_LAST_TRACKING_KEY = "farmapos_delivery_last_tracking";
@@ -52,6 +52,10 @@ function getDeliveryCompanyProfile() {
   } catch {
     profile = {};
   }
+  const rawLogoUrl = String(profile.logoUrl || profile.logo_url || "").trim();
+  const logoUrl = /^file:\/\//i.test(rawLogoUrl) || /^[a-z]:[\\/]/i.test(rawLogoUrl) || /^\\\\/.test(rawLogoUrl)
+    ? ""
+    : rawLogoUrl;
   return {
     name: String(profile.name || "Sistema Facturacion").trim(),
     nit: String(profile.nit || "").trim(),
@@ -59,7 +63,7 @@ function getDeliveryCompanyProfile() {
     email: String(profile.email || "").trim(),
     address: String(profile.address || "").trim(),
     city: String(profile.city || "").trim(),
-    logoUrl: String(profile.logoUrl || profile.logo_url || DELIVERY_DEFAULT_LOGO).trim()
+    logoUrl: logoUrl || DELIVERY_DEFAULT_LOGO
   };
 }
 

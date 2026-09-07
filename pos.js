@@ -12,8 +12,8 @@ const viewTitles = {
   sales: { label: "Ventas", title: "Punto de venta" },
   inventory: { label: "Inventario", title: "Control de existencias" },
   clients: { label: "Clientes", title: "Gestion de clientes" },
-  reports: { label: "Reportes", title: "AnalÃ­tica comercial" },
-  settings: { label: "ConfiguraciÃ³n", title: "Herramientas del sistema" },
+  reports: { label: "Reportes", title: "Analítica comercial" },
+  settings: { label: "Configuración", title: "Herramientas del sistema" },
 };
 
 function loadData(key, fallback) {
@@ -109,7 +109,7 @@ const initialInventory = Array.from(products).map((card, index) => ({
 
 const initialClients = [
   { id: crypto.randomUUID(), name: "Cliente general", document: "222222222", phone: "", purchases: 0 },
-  { id: crypto.randomUUID(), name: "MarÃ­a GÃ³mez", document: "10203040", phone: "3001234567", purchases: 2 },
+  { id: crypto.randomUUID(), name: "María Gómez", document: "10203040", phone: "3001234567", purchases: 2 },
 ];
 
 let inventory = loadData(STORAGE_KEYS.inventory, initialInventory);
@@ -370,7 +370,7 @@ function renderInventoryInsights() {
         </div>
       `
     ),
-  ].join("") || `<div class="inventory-alert-item"><strong>Inventario estable</strong><span>No hay alertas crÃ­ticas por ahora.</span></div>`;
+  ].join("") || `<div class="inventory-alert-item"><strong>Inventario estable</strong><span>No hay alertas críticas por ahora.</span></div>`;
 
   inventoryCategoryList.innerHTML = categories
     .map(
@@ -414,7 +414,7 @@ function renderClientCards() {
           <strong>${client.name}</strong>
           <span>${client.document}</span>
           <div class="client-profile-meta">
-            <span>${client.phone || "Sin telÃ©fono"}</span>
+            <span>${client.phone || "Sin teléfono"}</span>
             <span>${client.purchases || 0} compras</span>
           </div>
         </article>
@@ -430,8 +430,8 @@ function renderRecentSales() {
         .map(
           (sale) => `
             <div class="activity-item">
-              <strong>${sale.ticketNumber} Â· ${formatCurrency(sale.total)}</strong>
-              <span>${sale.clientName} Â· ${sale.paymentMethod} Â· ${sale.date}</span>
+              <strong>${sale.ticketNumber} · ${formatCurrency(sale.total)}</strong>
+              <span>${sale.clientName} · ${sale.paymentMethod} · ${sale.date}</span>
             </div>
           `
         )
@@ -443,7 +443,7 @@ function renderHomeAlerts() {
   const outOfStock = inventory.filter((item) => item.stock === 0).length;
   const lowStock = inventory.filter((item) => item.stock > 0 && item.stock <= 10).length;
   const alerts = [
-    { title: `${lowStock} productos con stock bajo`, text: "Revisa reposiciÃ³n antes de frenar ventas." },
+    { title: `${lowStock} productos con stock bajo`, text: "Revisa reposición antes de frenar ventas." },
     { title: `${outOfStock} productos agotados`, text: "Estos productos ya no se pueden vender." },
     { title: `${clients.length} clientes registrados`, text: "La base comercial esta lista para usarse." },
   ];
@@ -496,7 +496,7 @@ function renderReportsWidgets() {
     },
     {
       title: biggestSale ? `Venta mayor ${biggestSale.ticketNumber}` : "Sin ventas destacadas",
-      text: biggestSale ? `${formatCurrency(biggestSale.total)} a ${biggestSale.clientName}.` : "No hay suficiente actividad aÃºn.",
+      text: biggestSale ? `${formatCurrency(biggestSale.total)} a ${biggestSale.clientName}.` : "No hay suficiente actividad aún.",
     },
     {
       title: lowestStock ? `${lowestStock.name} requiere atencion` : "Inventario estable",
@@ -583,7 +583,7 @@ function buildTicketHtml(sale) {
       <hr>
       <p>Cliente: ${sale.clientName}</p>
       <p>Documento: ${sale.clientDocument || "Consumidor final"}</p>
-      <p>MÃ©todo: ${sale.paymentMethod}</p>
+      <p>Método: ${sale.paymentMethod}</p>
       ${sale.cashReceived ? `<p>Recibido: ${formatCurrency(sale.cashReceived)}</p>` : ""}
       ${sale.change ? `<p>Cambio: ${formatCurrency(sale.change)}</p>` : ""}
       <hr>
@@ -842,7 +842,7 @@ downloadTicketButton?.addEventListener("click", () => {
 
 printLastTicketButton?.addEventListener("click", () => {
   if (!lastTicketHtml) {
-    alert("AÃºn no hay tickets generados.");
+    alert("Aún no hay tickets generados.");
     return;
   }
   openTicket(lastTicketHtml);
@@ -868,4 +868,3 @@ resetDataButton?.addEventListener("click", () => {
 
 refreshAll();
 switchView("home");
-

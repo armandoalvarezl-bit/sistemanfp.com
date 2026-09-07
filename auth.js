@@ -325,7 +325,7 @@ function formatAuthRuntimeLabel(status) {
         timeStyle: "short"
       })
     : "";
-  return [helper, stamp].filter(Boolean).join(" Ã‚Â· ");
+  return [helper, stamp].filter(Boolean).join(" · ");
 }
 
 async function renderAuthVersion() {
@@ -1336,6 +1336,43 @@ function redirectToDashboard() {
   }
 }
 
+function isCompanyProfileComplete(profile) {
+  return ["name", "nit", "phone", "email", "address", "city", "manager"]
+    .every((field) => String(profile?.[field] || "").trim());
+}
+
+async function shouldStartCompanyOnboarding(user) {
+  const companyId = String(user?.companyId || "").trim();
+  if (LOGIN_SCOPE === "internal" || !companyId) return false;
+
+  try {
+    if (desktopDb?.bootstrap) {
+      const bootstrap = await desktopDb.bootstrap({ companyId });
+      return !isCompanyProfileComplete(bootstrap?.profile);
+    }
+
+    if (!isAppsScriptWebDbUrl()) return false;
+    const url = `${WEB_DB_API_URL}?mode=company&companyId=${encodeURIComponent(companyId)}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store"
+    });
+    const data = await response.json().catch(() => null);
+    return Boolean(response.ok && data?.ok && !isCompanyProfileComplete(data.profile));
+  } catch {
+    return false;
+  }
+}
+
+async function redirectAfterLogin(user) {
+  if (await shouldStartCompanyOnboarding(user)) {
+    window.location.replace(new URL("configuracion.html?onboarding=1", window.location.href).toString());
+    return;
+  }
+  redirectToDashboard();
+}
+
 function setSubmitting(isSubmitting) {
   const submitButton = document.querySelector('#loginForm button[type="submit"]');
   if (!submitButton) return;
@@ -1411,8 +1448,8 @@ async function setupLoginPage() {
   if (LOGIN_SCOPE !== "internal" && existingSession?.user && existingLicense?.code && (desktopDb || isWebDbApiEnabled())) {
     setAuthLoadingState(true, "Validando licencia", "Comprobando licencia activa en Excel en linea...");
     validateLicenseWithApi(existingLicense.code)
-      .then(() => {
-        redirectToDashboard();
+      .then(async () => {
+        await redirectAfterLogin(existingSession);
       })
       .catch(() => {
         clearStoredAccess();
@@ -1463,7 +1500,7 @@ async function setupLoginPage() {
       }
       saveSession(user);
       setAuthLoadingState(false);
-      redirectToDashboard();
+      await redirectAfterLogin(user);
       return;
     } catch (error) {
       const friendlyError = getFriendlyLoginError(error);

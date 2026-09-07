@@ -8,6 +8,8 @@ var LICENSE_HISTORY_SHEET_NAME = 'LicenciasHistorial';
 var WITHDRAWALS_SHEET_NAME = 'Retiros';
 var CASH_CLOSURES_SHEET_CANDIDATES = ['CierresCaja', 'Cierres de Caja', 'Cierres'];
 var SETTINGS_SHEET_NAME = 'Info';
+var COMPANY_PROFILES_SHEET_NAME = 'PerfilesEmpresa';
+var SYSTEM_NOTIFICATIONS_SHEET_NAME = 'NotificacionesSistema';
 var CLIENTS_SHEET_NAME = 'Clientes';
 var SUPPLIERS_SHEET_NAME = 'Proveedores';
 var PURCHASES_SHEET_NAME = 'Compras';
@@ -23,6 +25,8 @@ var USER_HEADERS = ['Id', 'Nombre', 'Usuario', 'contraseña', 'Estado'];
 var WITHDRAWALS_HEADERS = ['id', 'retiro_numero', 'fecha', 'hora', 'monto', 'motivo', 'cajero_usuario', 'cajero_nombre', 'supervisor_usuario', 'supervisor_nombre', 'creado_en'];
 var CASH_CLOSURES_HEADERS = ['id', 'cierre_numero', 'fecha', 'creado_en', 'usuario', 'apertura', 'ventas_efectivo', 'ventas_tarjeta', 'ventas_transferencia', 'retiros_total', 'ajuste_manual', 'efectivo_contado', 'efectivo_esperado', 'diferencia', 'transacciones', 'ventas_total', 'unidades', 'observaciones', 'ventas_json'];
 var SETTINGS_HEADERS = ['clave', 'valor'];
+var COMPANY_PROFILE_HEADERS = ['company_id', 'name', 'nit', 'phone', 'email', 'address', 'city', 'manager', 'logo_url', 'actualizado_en'];
+var SYSTEM_NOTIFICATION_HEADERS = ['id', 'company_id', 'mensaje', 'activo', 'creado_por', 'creado_en', 'actualizado_en'];
 var CLIENT_HEADERS = ['id', 'nombre', 'documento', 'telefono', 'compras', 'puntos', 'total_gastado', 'activo'];
 var SUPPLIER_HEADERS = ['id', 'nombre', 'documento', 'telefono', 'contacto', 'ciudad', 'notas', 'activo'];
 var PURCHASE_HEADERS = ['id', 'proveedor_id', 'proveedor_nombre', 'inventario_id', 'producto_nombre', 'sku', 'cantidad', 'costo_unitario', 'total', 'lote', 'fecha', 'notas', 'creado_en'];
@@ -38,9 +42,27 @@ var COMPANY_HEADERS = ['id', 'nombre', 'nit', 'telefono', 'email', 'contacto', '
 var LICENSE_HEADERS = ['id', 'empresa_id', 'codigo_licencia', 'cliente_nombre', 'cliente_documento', 'empresa_nombre', 'telefono', 'email', 'equipo_id', 'equipo_nombre', 'plan', 'max_equipos', 'fecha_activacion', 'fecha_vencimiento', 'estado', 'observaciones', 'creada_en', 'actualizada_en'];
 var LICENSE_DEVICE_HEADERS = ['id', 'licencia_id', 'equipo_id', 'equipo_nombre', 'primera_activacion', 'ultima_validacion', 'estado'];
 var LICENSE_HISTORY_HEADERS = ['id', 'licencia_id', 'tipo_evento', 'detalle', 'equipo_id', 'equipo_nombre', 'creado_en'];
+var REQUEST_COMPANY_ID = '';
+
+function setRequestCompanyScope_(companyId) {
+  REQUEST_COMPANY_ID = String(companyId || '').trim();
+}
+
+function requireCompanyScope_() {
+  if (!REQUEST_COMPANY_ID || REQUEST_COMPANY_ID === '__SYSTEM__') {
+    throw new Error('Esta operacion requiere una empresa autenticada. El equipo interno no puede consultar datos operativos.');
+  }
+  return REQUEST_COMPANY_ID;
+}
+
+function getTenantSheetName_(baseName) {
+  var companyId = requireCompanyScope_().replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40);
+  return String(baseName || '').slice(0, 55) + '__' + companyId;
+}
 
 function doGet(e) {
   var mode = getParam_(e, 'mode', 'full');
+  setRequestCompanyScope_(getParam_(e, 'companyId', ''));
 
   try {
     if (mode === 'ping') {
@@ -133,17 +155,34 @@ function doGet(e) {
     }
 
     if (mode === 'company') {
-      var settingsSheet = getSettingsSheet_();
+      var companyId = getProfileScopeWeb_(getParam_(e, 'companyId', ''));
       return jsonResponse_({
         ok: true,
         mode: 'company',
         updated_at: new Date().toISOString(),
-        profile: readCompanyProfile_(settingsSheet)
+        companyId: companyId,
+        profile: readCompanyProfileByCompanyWeb_(companyId)
       });
     }
 
+    if (mode === 'system_update') {
+      return jsonResponse_(getSystemNotificationWeb_(getParam_(e, 'companyId', '')));
+    }
+
     if (mode === 'all') {
-      return jsonResponse_(buildFullWorkbookState_('all'));
+      return jsonResponse_(buildFullWorkbookState_('all', getParam_(e, 'companyId', '')));
+    }
+
+    if (!REQUEST_COMPANY_ID || REQUEST_COMPANY_ID === '__SYSTEM__') {
+      return jsonResponse_({
+        ok: true,
+        mode: 'internal',
+        message: 'Apps Script activo. Indica companyId para consultar datos operativos.',
+        updated_at: new Date().toISOString(),
+        total: 0,
+        items: [],
+        inventory: []
+      });
     }
 
     var sheet = getInventorySheet_();
@@ -171,6 +210,7 @@ function doGet(e) {
 function doPost(e) {
   try {
     var payload = parseRequestBody_(e);
+    setRequestCompanyScope_(payload.companyId || payload.company_id || '');
     var action = String(payload.action || 'upsert').trim().toLowerCase();
 
     if (action === 'debug') {
@@ -304,19 +344,24 @@ function doPost(e) {
     }
 
     if (action === 'save_company_profile') {
-      var settingsSheet = getSettingsSheet_();
+      var companyId = getProfileScopeWeb_(payload.companyId || payload.company_id || '');
       var profile = normalizeCompanyProfile_(payload.profile || payload);
-      var savedProfile = saveCompanyProfile_(settingsSheet, profile);
+      var savedProfile = saveCompanyProfileByCompanyWeb_(companyId, profile);
       return jsonResponse_({
         ok: true,
         action: 'save_company_profile',
         updated_at: new Date().toISOString(),
+        companyId: companyId,
         profile: savedProfile
       });
     }
 
+    if (action === 'save_system_update') {
+      return jsonResponse_(saveSystemNotificationWeb_(payload));
+    }
+
     if (action === 'workbook_state') {
-      return jsonResponse_(buildFullWorkbookState_('workbook_state'));
+      return jsonResponse_(buildFullWorkbookState_('workbook_state', payload.companyId || payload.company_id || ''));
     }
 
     if (action === 'save_client') {
@@ -662,11 +707,10 @@ function getInventorySheet_() {
     throw new Error('No se pudo abrir la hoja de cálculo activa.');
   }
 
-  var sheet = spreadsheet.getSheetByName(SHEET_NAME);
+  var scopedName = getTenantSheetName_(SHEET_NAME);
+  var sheet = spreadsheet.getSheetByName(scopedName);
   if (!sheet) {
-    throw new Error('No existe la hoja "' + SHEET_NAME + '". Hojas disponibles: ' + spreadsheet.getSheets().map(function(item) {
-      return item.getName();
-    }).join(', '));
+    sheet = spreadsheet.insertSheet(scopedName);
   }
 
   ensureHeaders_(sheet);
@@ -679,9 +723,10 @@ function getSalesSheet_() {
     throw new Error('No se pudo abrir la hoja de cálculo activa.');
   }
 
-  var sheet = spreadsheet.getSheetByName(SALES_SHEET_NAME);
+  var scopedName = getTenantSheetName_(SALES_SHEET_NAME);
+  var sheet = spreadsheet.getSheetByName(scopedName);
   if (!sheet) {
-    sheet = spreadsheet.insertSheet(SALES_SHEET_NAME);
+    sheet = spreadsheet.insertSheet(scopedName);
   }
 
   ensureSalesHeaders_(sheet);
@@ -709,9 +754,10 @@ function getWithdrawalsSheet_() {
     throw new Error('No se pudo abrir la hoja de cálculo activa.');
   }
 
-  var sheet = spreadsheet.getSheetByName(WITHDRAWALS_SHEET_NAME);
+  var scopedName = getTenantSheetName_(WITHDRAWALS_SHEET_NAME);
+  var sheet = spreadsheet.getSheetByName(scopedName);
   if (!sheet) {
-    sheet = spreadsheet.insertSheet(WITHDRAWALS_SHEET_NAME);
+    sheet = spreadsheet.insertSheet(scopedName);
   }
 
   ensureWithdrawalsHeaders_(sheet);
@@ -725,13 +771,14 @@ function getCashClosuresSheet_() {
   }
 
   var sheet = null;
+  var scopedNames = CASH_CLOSURES_SHEET_CANDIDATES.map(function(name) { return getTenantSheetName_(name); });
   for (var i = 0; i < CASH_CLOSURES_SHEET_CANDIDATES.length; i += 1) {
-    sheet = spreadsheet.getSheetByName(CASH_CLOSURES_SHEET_CANDIDATES[i]);
+    sheet = spreadsheet.getSheetByName(scopedNames[i]);
     if (sheet) break;
   }
 
   if (!sheet) {
-    sheet = spreadsheet.insertSheet(CASH_CLOSURES_SHEET_CANDIDATES[0]);
+    sheet = spreadsheet.insertSheet(scopedNames[0]);
   }
 
   ensureCashClosuresHeaders_(sheet);
@@ -753,28 +800,36 @@ function getSettingsSheet_() {
   return sheet;
 }
 
+function getCompanyProfilesSheet_() {
+  return getOrCreateSheet_(COMPANY_PROFILES_SHEET_NAME, COMPANY_PROFILE_HEADERS);
+}
+
+function getSystemNotificationsSheet_() {
+  return getOrCreateSheet_(SYSTEM_NOTIFICATIONS_SHEET_NAME, SYSTEM_NOTIFICATION_HEADERS);
+}
+
 function getClientsSheet_() {
-  return getOrCreateSheet_(CLIENTS_SHEET_NAME, CLIENT_HEADERS);
+  return getOrCreateSheet_(getTenantSheetName_(CLIENTS_SHEET_NAME), CLIENT_HEADERS);
 }
 
 function getSuppliersSheet_() {
-  return getOrCreateSheet_(SUPPLIERS_SHEET_NAME, SUPPLIER_HEADERS);
+  return getOrCreateSheet_(getTenantSheetName_(SUPPLIERS_SHEET_NAME), SUPPLIER_HEADERS);
 }
 
 function getPurchasesSheet_() {
-  return getOrCreateSheet_(PURCHASES_SHEET_NAME, PURCHASE_HEADERS);
+  return getOrCreateSheet_(getTenantSheetName_(PURCHASES_SHEET_NAME), PURCHASE_HEADERS);
 }
 
 function getReturnsSheet_() {
-  return getOrCreateSheet_(RETURNS_SHEET_NAME, RETURN_HEADERS);
+  return getOrCreateSheet_(getTenantSheetName_(RETURNS_SHEET_NAME), RETURN_HEADERS);
 }
 
 function getPromotionsSheet_() {
-  return getOrCreateSheet_(PROMOTIONS_SHEET_NAME, PROMOTION_HEADERS);
+  return getOrCreateSheet_(getTenantSheetName_(PROMOTIONS_SHEET_NAME), PROMOTION_HEADERS);
 }
 
 function getAuditLogsSheet_() {
-  var sheet = getOrCreateSheet_(AUDIT_LOGS_SHEET_NAME, AUDIT_LOG_HEADERS, ensureAuditLogHeaders_);
+  var sheet = getOrCreateSheet_(getTenantSheetName_(AUDIT_LOGS_SHEET_NAME), AUDIT_LOG_HEADERS, ensureAuditLogHeaders_);
   return sheet;
 }
 
@@ -1163,9 +1218,10 @@ function normalizeStoredSale_(sale) {
     ticketNumber: String(sale.ticket_numero || '').trim(),
     clientName: String(sale.cliente_nombre || 'Cliente general').trim(),
     clientDocument: String(sale.cliente_documento || '').trim(),
-    date: String(sale.fecha || '').trim(),
-    time: String(sale.hora || '').trim(),
-    paymentMethod: String(sale.metodo_pago || 'Efectivo').trim(),
+    date: normalizeSalesDateValue_(sale.fecha || ''),
+    time: normalizeTimeValue_(sale.hora || ''),
+    createdAt: String(sale.creado_en || '').trim(),
+    paymentMethod: normalizePaymentMethod_(sale.metodo_pago || 'Efectivo'),
     cashReceived: Number(sale.recibido || 0),
     change: Number(sale.cambio || 0),
     subtotal: Number(sale.subtotal || 0),
@@ -1234,7 +1290,7 @@ function normalizeStoredCashClosure_(closure) {
 function normalizeIncomingSale_(sale) {
   var now = new Date();
   var dateText = normalizeSalesDateValue_(sale.date || '');
-  var timeText = String(sale.time || '').trim();
+  var timeText = normalizeTimeValue_(sale.time || '');
 
   return {
     id: String(sale.id || Utilities.getUuid()).trim(),
@@ -1243,7 +1299,8 @@ function normalizeIncomingSale_(sale) {
     clientDocument: String(sale.clientDocument || '').trim(),
     date: dateText || Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
     time: timeText || Utilities.formatDate(now, Session.getScriptTimeZone(), 'HH:mm'),
-    paymentMethod: String(sale.paymentMethod || 'Efectivo').trim(),
+    createdAt: String(sale.createdAt || sale.creado_en || now.toISOString()).trim(),
+    paymentMethod: normalizePaymentMethod_(sale.paymentMethod || 'Efectivo'),
     cashReceived: Number(sale.cashReceived || 0),
     change: Number(sale.change || 0),
     subtotal: Number(sale.subtotal || 0),
@@ -1305,6 +1362,26 @@ function normalizeTimeValue_(value) {
   return text;
 }
 
+function normalizePaymentMethod_(value) {
+  var normalized = String(value || 'Efectivo')
+    .trim()
+    .toLowerCase()
+    .replace(/[áàäâ]/g, 'a')
+    .replace(/[éèëê]/g, 'e')
+    .replace(/[íìïî]/g, 'i')
+    .replace(/[óòöô]/g, 'o')
+    .replace(/[úùüû]/g, 'u')
+    .replace(/\s+/g, ' ');
+
+  if (['tarjeta', 'tarjeta debito', 'tarjeta credito', 'debito', 'credito', 'datafono'].indexOf(normalized) >= 0) {
+    return 'Tarjeta';
+  }
+  if (['transferencia', 'transferencia bancaria', 'nequi', 'daviplata', 'bancolombia', 'qr'].indexOf(normalized) >= 0) {
+    return 'Transferencia';
+  }
+  return 'Efectivo';
+}
+
 function normalizeIncomingCashClosure_(closure) {
   var now = new Date();
   var normalized = {
@@ -1345,8 +1422,17 @@ function normalizeCompanyProfile_(profile) {
     address: String(profile.address || '').trim(),
     city: String(profile.city || '').trim(),
     manager: String(profile.manager || '').trim(),
-    logo_url: String(profile.logo_url || profile.logoUrl || '').trim()
+    logo_url: normalizePublicImageSourceWeb_(profile.logo_url || profile.logoUrl || '')
   };
+}
+
+function normalizePublicImageSourceWeb_(value) {
+  var source = String(value || '').trim();
+  if (!source) return '';
+  if (/^file:\/\//i.test(source)) return '';
+  if (/^[a-z]:[\\/]/i.test(source)) return '';
+  if (/^\\\\/.test(source)) return '';
+  return source;
 }
 
 function readCompanyProfile_(sheet) {
@@ -1363,7 +1449,7 @@ function readCompanyProfile_(sheet) {
     profile[key] = String(values[rowIndex][1] || '').trim();
   }
 
-  return profile;
+  return normalizeCompanyProfile_(profile);
 }
 
 function saveCompanyProfile_(sheet, profile) {
@@ -1377,6 +1463,107 @@ function saveCompanyProfile_(sheet, profile) {
   sheet.clearContents();
   sheet.getRange(1, 1, rows.length, SETTINGS_HEADERS.length).setValues(rows);
   return normalized;
+}
+
+function getProfileScopeWeb_(companyId) {
+  return String(companyId || '').trim() || '__SYSTEM__';
+}
+
+function readCompanyProfileByCompanyWeb_(companyId) {
+  var scope = getProfileScopeWeb_(companyId);
+  var rows = readSimpleItems_(getCompanyProfilesSheet_());
+  for (var i = 0; i < rows.length; i += 1) {
+    if (String(rows[i].company_id || '').trim() === scope) {
+      return normalizeCompanyProfile_(rows[i]);
+    }
+  }
+
+  return normalizeCompanyProfile_({});
+}
+
+function saveCompanyProfileByCompanyWeb_(companyId, profile) {
+  var scope = getProfileScopeWeb_(companyId);
+  var sheet = getCompanyProfilesSheet_();
+  var rows = readSimpleItems_(sheet);
+  var rowIndex = -1;
+  for (var i = 0; i < rows.length; i += 1) {
+    if (String(rows[i].company_id || '').trim() === scope) {
+      rowIndex = i + 2;
+      break;
+    }
+  }
+
+  var normalized = normalizeCompanyProfile_(profile);
+  writeSimpleRow_(sheet, COMPANY_PROFILE_HEADERS, rowIndex, {
+    company_id: scope,
+    name: normalized.name,
+    nit: normalized.nit,
+    phone: normalized.phone,
+    email: normalized.email,
+    address: normalized.address,
+    city: normalized.city,
+    manager: normalized.manager,
+    logo_url: normalized.logo_url,
+    actualizado_en: new Date().toISOString()
+  });
+  return normalized;
+}
+
+function getSystemNotificationWeb_(companyId) {
+  var scope = String(companyId || '').trim();
+  var rows = readSimpleItems_(getSystemNotificationsSheet_());
+  var selected = null;
+  rows.forEach(function(row) {
+    var rowScope = String(row.company_id || '').trim();
+    var active = String(row.activo || 'SI').trim().toUpperCase() !== 'NO';
+    if (!active || (rowScope && rowScope !== scope)) return;
+    var currentTime = new Date(row.actualizado_en || row.creado_en || 0).getTime() || 0;
+    var selectedTime = selected ? (new Date(selected.actualizado_en || selected.creado_en || 0).getTime() || 0) : -1;
+    var currentIsSpecific = Boolean(scope && rowScope === scope);
+    var selectedIsSpecific = Boolean(selected && scope && String(selected.company_id || '').trim() === scope);
+    if (!selected || (currentIsSpecific && !selectedIsSpecific) || (currentIsSpecific === selectedIsSpecific && currentTime >= selectedTime)) selected = row;
+  });
+  return {
+    ok: true,
+    mode: 'system_update',
+    companyId: scope,
+    notification: selected ? {
+      id: String(selected.id || '').trim(),
+      companyId: String(selected.company_id || '').trim(),
+      message: String(selected.mensaje || '').trim(),
+      updatedAt: String(selected.actualizado_en || selected.creado_en || '').trim()
+    } : null,
+    message: selected ? String(selected.mensaje || '').trim() : ''
+  };
+}
+
+function saveSystemNotificationWeb_(payload) {
+  var sheet = getSystemNotificationsSheet_();
+  var rows = readSimpleItems_(sheet);
+  var scope = String(payload.companyId || payload.company_id || '').trim();
+  var message = String(payload.message || payload.mensaje || '').trim();
+  var rowIndex = -1;
+  var current = null;
+  for (var i = 0; i < rows.length; i += 1) {
+    if (String(rows[i].company_id || '').trim() === scope) {
+      rowIndex = i + 2;
+      current = rows[i];
+      break;
+    }
+  }
+  var now = new Date().toISOString();
+  writeSimpleRow_(sheet, SYSTEM_NOTIFICATION_HEADERS, rowIndex, {
+    id: current ? String(current.id || '').trim() : Utilities.getUuid(),
+    company_id: scope,
+    mensaje: message,
+    activo: message ? 'SI' : 'NO',
+    creado_por: String(payload.createdBy || payload.creado_por || '').trim(),
+    creado_en: current ? String(current.creado_en || '').trim() : now,
+    actualizado_en: now
+  });
+  var response = getSystemNotificationWeb_(scope);
+  response.action = 'save_system_update';
+  return response;
 }
 
 function hashPasswordWeb_(password) {
@@ -1929,9 +2116,9 @@ function normalizeSalesDateValue_(value) {
     return isoValue;
   }
 
-  var latinMatch = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  var latinMatch = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (latinMatch) {
-    return latinMatch[3] + '-' + latinMatch[2] + '-' + latinMatch[1];
+    return latinMatch[3] + '-' + ('0' + latinMatch[2]).slice(-2) + '-' + ('0' + latinMatch[1]).slice(-2);
   }
 
   return text;
@@ -1992,7 +2179,6 @@ function appendSale_(sheet, sale) {
     normalized.ticketNumber = buildSaleTicketNumber_(values, normalized.date);
   }
 
-  var createdAt = new Date().toISOString();
   var rowValues = [
     normalized.id,
     normalized.ticketNumber,
@@ -2007,7 +2193,7 @@ function appendSale_(sheet, sale) {
     normalized.tax,
     normalized.total,
     JSON.stringify(normalized.items),
-    createdAt,
+    normalized.createdAt,
     normalized.redeemedPoints,
     normalized.loyaltyDiscount,
     normalized.earnedPoints,
@@ -2622,6 +2808,8 @@ function setupWebApp_(payload) {
   summary.sheets.push(describeSetupSheet_(WITHDRAWALS_SHEET_NAME, WITHDRAWALS_HEADERS, getWithdrawalsSheet_, dryRun));
   summary.sheets.push(describeSetupSheet_(CASH_CLOSURES_SHEET_CANDIDATES[0], CASH_CLOSURES_HEADERS, getCashClosuresSheet_, dryRun));
   summary.sheets.push(describeSetupSheet_(SETTINGS_SHEET_NAME, SETTINGS_HEADERS, getSettingsSheet_, dryRun));
+  summary.sheets.push(describeSetupSheet_(COMPANY_PROFILES_SHEET_NAME, COMPANY_PROFILE_HEADERS, getCompanyProfilesSheet_, dryRun));
+  summary.sheets.push(describeSetupSheet_(SYSTEM_NOTIFICATIONS_SHEET_NAME, SYSTEM_NOTIFICATION_HEADERS, getSystemNotificationsSheet_, dryRun));
   summary.sheets.push(describeSetupSheet_(COMPANIES_SHEET_NAME, COMPANY_HEADERS, getCompaniesSheet_, dryRun));
   summary.sheets.push(describeSetupSheet_(LICENSES_SHEET_NAME, LICENSE_HEADERS, getLicensesSheet_, dryRun));
   summary.sheets.push(describeSetupSheet_(LICENSE_DEVICES_SHEET_NAME, LICENSE_DEVICE_HEADERS, getLicenseDevicesSheet_, dryRun));
@@ -2724,22 +2912,39 @@ function ensureAuditLogHeaders_(sheet) {
     return;
   }
 
-  var legacyHeaders = ['id', 'modulo', 'accion', 'entity_id', 'entity_name', 'detalle', 'usuario', 'creado_en'];
-  var legacyMatches = true;
-  for (var i = 0; i < legacyHeaders.length; i += 1) {
-    if (normalizeHeaderKey_(existingHeaders[i]) !== normalizeHeaderKey_(legacyHeaders[i])) {
-      legacyMatches = false;
-      break;
-    }
-  }
+  var normalizedHeaders = existingHeaders.map(normalizeHeaderKey_);
+  var canonicalMatches = AUDIT_LOG_HEADERS.every(function(header, index) {
+    return normalizedHeaders[index] === normalizeHeaderKey_(header);
+  });
+  if (canonicalMatches) return;
 
-  if (legacyMatches) {
-    sheet.insertColumnBefore(8);
-    sheet.getRange(1, 8).setValue('usuario_login');
-    return;
+  var aliases = {
+    id: ['id'],
+    modulo: ['modulo', 'module'],
+    accion: ['accion', 'action'],
+    entity_id: ['entity_id', 'entidad_id', 'registro_id'],
+    entity_name: ['entity_name', 'entidad_nombre', 'registro_nombre'],
+    detalle: ['detalle', 'detail', 'descripcion'],
+    usuario: ['usuario', 'user', 'nombre_usuario'],
+    usuario_login: ['usuario_login', 'username', 'login'],
+    creado_en: ['creado_en', 'created_at', 'fecha', 'fecha_hora']
+  };
+  var fallbackIndexes = [0, 1, 2, 3, 4, 5, 6, -1, Math.max(7, existingHeaders.length - 1)];
+  var values = sheet.getDataRange().getValues();
+  var migratedRows = [AUDIT_LOG_HEADERS];
+  for (var rowIndex = 1; rowIndex < values.length; rowIndex += 1) {
+    migratedRows.push(AUDIT_LOG_HEADERS.map(function(header, headerIndex) {
+      var sourceIndex = -1;
+      (aliases[header] || [header]).some(function(alias) {
+        sourceIndex = normalizedHeaders.indexOf(normalizeHeaderKey_(alias));
+        return sourceIndex >= 0;
+      });
+      if (sourceIndex < 0) sourceIndex = fallbackIndexes[headerIndex];
+      return sourceIndex >= 0 && sourceIndex < values[rowIndex].length ? values[rowIndex][sourceIndex] : '';
+    }));
   }
-
-  ensureSimpleHeaders_(sheet, AUDIT_LOG_HEADERS);
+  sheet.clearContents();
+  sheet.getRange(1, 1, migratedRows.length, AUDIT_LOG_HEADERS.length).setValues(migratedRows);
 }
 
 function readSimpleItems_(sheet) {
@@ -2766,7 +2971,7 @@ function safeWorkbookSection_(errors, section, sheetName, reader) {
   }
 }
 
-function buildFullWorkbookState_(mode) {
+function buildFullWorkbookState_(mode, companyId) {
   var errors = [];
   var inventory = safeWorkbookSection_(errors, 'inventory', SHEET_NAME, function() {
     return readInventoryItems_(getInventorySheet_());
@@ -2788,7 +2993,7 @@ function buildFullWorkbookState_(mode) {
   });
   var profile = {};
   try {
-    profile = readCompanyProfile_(getSettingsSheet_());
+    profile = readCompanyProfileByCompanyWeb_(companyId);
   } catch (profileError) {
     errors.push({
       section: 'profile',

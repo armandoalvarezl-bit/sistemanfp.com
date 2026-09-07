@@ -1,0 +1,161 @@
+:root {
+  --sa-ink: #172033;
+  --sa-muted: #64748b;
+  --sa-line: #dbe2ea;
+  --sa-canvas: #f3f5f7;
+  --sa-sidebar: #20252b;
+  --sa-sidebar-soft: #2c333b;
+  --sa-green: #14845f;
+  --sa-blue: #2563a8;
+  --sa-white: #fff;
+}
+
+body.superadmin-body { margin: 0; min-width: 0; min-height: 100vh; overflow-x: hidden; background: var(--sa-canvas); color: var(--sa-ink); font-family: Manrope, sans-serif; }
+.superadmin-body *, .superadmin-body *::before, .superadmin-body *::after { box-sizing: border-box; }
+.superadmin-console { width: 100%; min-width: 0; min-height: 100vh; padding-top: 58px; padding-left: 242px; overflow-x: clip; }
+.superadmin-bar { position: fixed; inset: 0 0 auto 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; height: 58px; padding: 0 22px 0 14px; background: #15191e; color: #fff; border-bottom: 1px solid #353c45; }
+.superadmin-wordmark { display: flex; align-items: center; gap: 10px; min-width: 0; color: #fff; text-decoration: none; }
+.superadmin-wordmark:hover { color: #fff; }
+.superadmin-wordmark > span:last-child, .superadmin-account span { display: flex; flex-direction: column; }
+.superadmin-wordmark strong { font-size: 15px; line-height: 1.1; }
+.superadmin-wordmark small, .superadmin-account small { color: #aab4c0; font-size: 10px; }
+.superadmin-mark { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 38px; padding: 4px; border-radius: 4px; background: #fff; overflow: hidden; }
+.superadmin-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.superadmin-bar-actions { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.superadmin-environment { font-size: 12px; color: #c8d1da; }
+.superadmin-environment i { color: #34d399; font-size: 7px; vertical-align: 2px; }
+.superadmin-icon-button { display: grid; place-items: center; width: 34px; height: 34px; border: 1px solid #434b55; border-radius: 4px; background: transparent; color: #fff; }
+.superadmin-account { display: flex; align-items: center; gap: 9px; padding-left: 16px; border-left: 1px solid #3b424b; }
+.superadmin-account > i { font-size: 24px; }
+.superadmin-account strong { font-size: 12px; }
+
+.superadmin-sidebar { position: fixed; inset: 58px auto 0 0; z-index: 20; width: 242px; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 22px 12px 16px; overflow-y: auto; background: var(--sa-sidebar); color: #d8dee5; }
+.superadmin-sidebar nav { display: grid; gap: 4px; }
+.superadmin-nav-label { margin: 14px 10px 6px; color: #7f8a96; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.superadmin-sidebar a { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 0 12px; border-left: 3px solid transparent; border-radius: 3px; color: #bdc7d1; text-decoration: none; font-size: 13px; font-weight: 600; }
+.superadmin-sidebar a:hover { background: var(--sa-sidebar-soft); color: #fff; }
+.superadmin-sidebar a.active { border-left-color: #3bd19d; background: #303841; color: #fff; }
+.superadmin-sidebar a i { width: 18px; font-size: 16px; }
+.superadmin-sidebar-footer { display: flex; flex-direction: column; padding: 14px 12px; border-top: 1px solid #39414a; }
+.superadmin-sidebar-footer span, .superadmin-sidebar-footer small { color: #8995a1; font-size: 10px; }
+.superadmin-sidebar-footer strong { margin: 3px 0 8px; color: #e7ebef; font-size: 11px; }
+
+.superadmin-main { width: 100%; min-width: 0; max-width: 1600px; padding: 28px 32px 48px; overflow: hidden; }
+.superadmin-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--sa-line); }
+.superadmin-breadcrumb { color: var(--sa-blue); font-size: 11px; font-weight: 700; }
+.superadmin-page-head h1 { margin: 5px 0 4px; font-size: 26px; font-weight: 800; letter-spacing: 0; }
+.superadmin-page-head p { margin: 0; color: var(--sa-muted); font-size: 13px; }
+.superadmin-access-badge { padding: 7px 10px; border: 1px solid #b9c5d2; border-radius: 4px; background: #fff; color: #475569; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.superadmin-denied { margin-top: 24px; padding: 18px; border-left: 4px solid #c0392b; background: #fff; }
+.superadmin-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 22px; }
+.superadmin-metrics article { display: flex; gap: 14px; min-width: 0; min-height: 106px; padding: 18px; border: 1px solid var(--sa-line); border-radius: 5px; background: #fff; box-shadow: 0 2px 5px rgba(15, 23, 42, .04); overflow: hidden; }
+.superadmin-metrics article > i { color: var(--sa-blue); font-size: 21px; }
+.superadmin-metrics div { display: flex; flex-direction: column; min-width: 0; }
+.superadmin-metrics small { color: var(--sa-muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.superadmin-metrics strong { margin: 3px 0; font-size: 21px; line-height: 1.2; }
+.superadmin-metrics span { color: var(--sa-muted); font-size: 11px; overflow-wrap: anywhere; }
+.superadmin-workspace { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(320px, .8fr); gap: 18px; margin-top: 18px; align-items: start; }
+.superadmin-side-stack { display: grid; min-width: 0; gap: 18px; }
+.superadmin-body [data-cpanel-view][hidden] { display: none !important; }
+.superadmin-body[data-cpanel-view="users"] .superadmin-workspace,
+.superadmin-body[data-cpanel-view="companies"] .superadmin-workspace,
+.superadmin-body[data-cpanel-view="infrastructure"] .superadmin-workspace { grid-template-columns: minmax(0, 1fr); }
+.superadmin-panel { min-width: 0; max-width: 100%; border: 1px solid var(--sa-line); border-radius: 5px; background: #fff; box-shadow: 0 2px 5px rgba(15, 23, 42, .04); overflow: hidden; }
+.superadmin-panel-head { display: flex; justify-content: space-between; gap: 18px; padding: 18px 20px; border-bottom: 1px solid var(--sa-line); background: #fafbfc; }
+.superadmin-panel-head span { color: var(--sa-blue); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.superadmin-panel-head h2 { margin: 3px 0; font-size: 16px; font-weight: 800; }
+.superadmin-panel-head p { margin: 0; color: var(--sa-muted); font-size: 11px; }
+.superadmin-panel-head > i { color: #7a8795; font-size: 21px; }
+.superadmin-panel .settings-form-stack { padding: 20px; }
+.superadmin-panel .cpanel-user-list { padding: 0 20px 20px; }
+.superadmin-panel .cpanel-status-list, .superadmin-panel .cpanel-tools-grid { margin: 18px 20px; }
+.superadmin-panel .settings-tile { border-radius: 4px; }
+.superadmin-panel .settings-form-grid { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.superadmin-panel .settings-field, .superadmin-panel input, .superadmin-panel select { min-width: 0; max-width: 100%; }
+.superadmin-panel .status-row { min-width: 0; align-items: flex-start; }
+.superadmin-panel .status-row strong { min-width: 0; max-width: 62%; text-align: right; overflow-wrap: anywhere; }
+.superadmin-panel .settings-inline-actions { flex-wrap: wrap; padding-left: 20px; padding-right: 20px; padding-bottom: 18px; }
+.superadmin-panel .settings-form-stack .settings-inline-actions { padding: 0; }
+.superadmin-panel .user-admin-item { min-width: 0; max-width: 100%; overflow: hidden; }
+.superadmin-panel .user-admin-head, .superadmin-panel .user-admin-head > div, .superadmin-panel .user-admin-meta { min-width: 0; max-width: 100%; }
+.superadmin-panel .user-admin-meta span { overflow-wrap: anywhere; }
+
+.developer-console-page .kpi-grid { margin-top: 22px; }
+.developer-console-page .kpi-card,
+.developer-console-page .module-card { border: 1px solid var(--sa-line); border-radius: 5px; background: #fff; box-shadow: 0 2px 5px rgba(15, 23, 42, .04); }
+.developer-console-page .kpi-card { min-height: 106px; }
+.developer-console-page .module-head { border-bottom-color: var(--sa-line); background: #fafbfc; }
+.developer-console-page .module-head h2 { font-size: 16px; }
+.developer-console-page .module-head p { color: var(--sa-muted); font-size: 11px; }
+.developer-console-page .support-topbar { align-items: flex-start; }
+.superadmin-standalone { margin-top: 18px; }
+.superadmin-body[data-cpanel-view="communications"] .superadmin-workspace,
+.superadmin-body[data-cpanel-view="audit"] .superadmin-workspace,
+.superadmin-body[data-cpanel-view="settings"] .superadmin-workspace { display: none; }
+.cpanel-current-message { padding: 14px; border: 1px solid var(--sa-line); border-radius: 4px; background: #f8fafc; }
+.cpanel-current-message small { color: var(--sa-muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.cpanel-current-message p { margin: 6px 0 0; white-space: pre-wrap; }
+.cpanel-audit-toolbar { display: flex; align-items: end; gap: 12px; padding: 18px 20px; border-bottom: 1px solid var(--sa-line); }
+.cpanel-audit-toolbar .settings-field { flex: 1; }
+.cpanel-audit-list { display: grid; }
+.cpanel-audit-item { display: flex; gap: 13px; padding: 15px 20px; border-bottom: 1px solid var(--sa-line); }
+.cpanel-audit-item > i { color: var(--sa-blue); }
+.cpanel-audit-item div { min-width: 0; }
+.cpanel-audit-item p { margin: 3px 0; color: var(--sa-muted); font-size: 12px; overflow-wrap: anywhere; }
+.cpanel-audit-item small { color: #7a8795; font-size: 10px; }
+.cpanel-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.cpanel-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--sa-line); }
+.cpanel-toggle-row span { display: grid; gap: 3px; }
+.cpanel-toggle-row small { color: var(--sa-muted); }
+.cpanel-toggle-row input { width: 18px; height: 18px; accent-color: var(--sa-green); }
+.cpanel-overview-status { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 18px 20px; }
+.cpanel-overview-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 10px; min-height: 48px; padding: 10px 12px; border: 1px solid var(--sa-line); border-left-width: 3px; border-radius: 4px; background: #fff; }
+.cpanel-overview-row i { color: var(--sa-blue); font-size: 17px; }
+.cpanel-overview-row span { color: var(--sa-muted); font-size: 12px; font-weight: 700; }
+.cpanel-overview-row strong { font-size: 17px; }
+.cpanel-overview-row.is-success { border-left-color: var(--sa-green); }
+.cpanel-overview-row.is-warn { border-left-color: #d59a19; background: #fffaf0; }
+.cpanel-overview-row.is-danger { border-left-color: #c0392b; background: #fff7f6; }
+.cpanel-subhead { padding: 13px 20px; border-top: 1px solid var(--sa-line); border-bottom: 1px solid var(--sa-line); background: #fafbfc; }
+.cpanel-subhead h3 { margin: 0; font-size: 12px; text-transform: uppercase; }
+.cpanel-compact .superadmin-main { padding-top: 18px; }
+.cpanel-compact .superadmin-metrics { gap: 9px; margin-top: 14px; }
+.cpanel-compact .superadmin-metrics article { min-height: 82px; padding: 12px; }
+.cpanel-compact .superadmin-panel-head { padding: 12px 16px; }
+.cpanel-compact .cpanel-audit-item { padding: 10px 16px; }
+.cpanel-compact .cpanel-overview-status { padding: 12px 16px; }
+
+@media (max-width: 1050px) {
+  .superadmin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .superadmin-workspace { grid-template-columns: 1fr; }
+  .cpanel-settings-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) and (min-width: 721px) {
+  .superadmin-console { padding-left: 205px; }
+  .superadmin-sidebar { width: 205px; }
+  .superadmin-main { padding: 24px 20px 40px; }
+  .superadmin-panel .settings-form-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .superadmin-console { display: block; padding: 58px 0 0; }
+  .superadmin-bar { position: fixed; width: 100%; padding: 0 10px; gap: 8px; }
+  .superadmin-wordmark strong { font-size: 13px; }
+  .superadmin-wordmark small, .superadmin-environment, .superadmin-account small, .superadmin-account span { display: none; }
+  .superadmin-mark { flex-basis: 34px; width: 34px; height: 34px; }
+  .superadmin-bar-actions { gap: 8px; }
+  .superadmin-account { padding-left: 8px; }
+  .superadmin-sidebar { position: sticky; inset: 0 auto auto 0; z-index: 19; width: 100%; min-height: auto; padding: 8px; }
+  .superadmin-sidebar nav { display: flex; overflow-x: auto; }
+  .superadmin-sidebar nav .superadmin-nav-label, .superadmin-sidebar-footer { display: none; }
+  .superadmin-sidebar a { flex: 0 0 auto; border-left: 0; border-bottom: 3px solid transparent; }
+  .superadmin-sidebar a.active { border-bottom-color: #3bd19d; }
+  .superadmin-main { padding: 22px 14px 36px; }
+  .superadmin-page-head { display: block; }
+  .superadmin-access-badge { display: inline-block; margin-top: 14px; }
+  .superadmin-metrics { grid-template-columns: 1fr; }
+  .superadmin-panel .settings-form-grid { grid-template-columns: 1fr; }
+  .superadmin-panel .settings-inline-actions, .superadmin-panel .user-admin-actions { width: 100%; }
+  .superadmin-panel .settings-inline-actions .btn { flex: 1 1 140px; }
+  .cpanel-overview-status { grid-template-columns: 1fr; padding: 14px; }
+  .cpanel-audit-toolbar { align-items: stretch; flex-direction: column; }
+}

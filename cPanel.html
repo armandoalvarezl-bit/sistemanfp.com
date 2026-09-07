@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbwGGUxjvdyJhrjPZwjwujFMxbWMDDRwIxpB-SHgkvxsjbj-CKWSTp75Jb_LVUndpmIGYA/exec">
+  <title>SuperAdmin | Consola del sistema</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="pos.css">
+  <link rel="stylesheet" href="cpanel.css">
+</head>
+<body class="superadmin-body" data-page="cpanel">
+  <div class="superadmin-console">
+    <header class="superadmin-bar">
+      <a class="superadmin-wordmark" href="cPanel.html"><span class="superadmin-mark"><img src="assets/logo/logo-nubefarma-clean.png" alt="Nube Farma"></span><span><strong>SuperAdmin</strong><small>Consola maestra</small></span></a>
+      <div class="superadmin-bar-actions">
+        <span class="superadmin-environment"><i class="bi bi-circle-fill"></i> Produccion</span>
+        <button class="superadmin-icon-button" id="cpanelRefresh" type="button" title="Actualizar consola" aria-label="Actualizar consola"><i class="bi bi-arrow-clockwise"></i></button>
+        <div class="superadmin-account"><i class="bi bi-person-circle"></i><span><strong id="sessionUser">Administrador</strong><small data-session-role-sidebar="true">Superadministrador</small></span></div>
+        <button class="superadmin-icon-button" id="cpanelLogout" type="button" title="Cerrar sesion" aria-label="Cerrar sesion"><i class="bi bi-box-arrow-right"></i></button>
+      </div>
+    </header>
+
+    <aside class="superadmin-sidebar">
+      <nav aria-label="Navegacion de SuperAdmin">
+        <span class="superadmin-nav-label">Administracion</span>
+        <a data-cpanel-nav="overview" href="cPanel.html?view=overview"><i class="bi bi-speedometer2"></i><span>Vista general</span></a>
+        <a data-cpanel-nav="users" href="cPanel.html?view=users"><i class="bi bi-people"></i><span>Todos los usuarios</span></a>
+        <a data-cpanel-nav="companies" href="cPanel.html?view=companies"><i class="bi bi-buildings"></i><span>Empresas y perfiles</span></a>
+        <a href="licencias.html"><i class="bi bi-key"></i><span>Licencias</span></a>
+        <a data-cpanel-nav="infrastructure" href="cPanel.html?view=infrastructure"><i class="bi bi-hdd-network"></i><span>Infraestructura</span></a>
+        <span class="superadmin-nav-label">Sistema</span>
+        <a data-cpanel-nav="communications" href="cPanel.html?view=communications"><i class="bi bi-megaphone"></i><span>Comunicaciones</span></a>
+        <a href="soporte.html"><i class="bi bi-life-preserver"></i><span>Centro de soporte</span></a>
+        <a data-cpanel-nav="audit" href="cPanel.html?view=audit"><i class="bi bi-journal-check"></i><span>Auditoria</span></a>
+        <a data-cpanel-nav="settings" href="cPanel.html?view=settings"><i class="bi bi-sliders"></i><span>Configuracion</span></a>
+      </nav>
+      <div class="superadmin-sidebar-footer"><span>Acceso global</span><strong>Control total del sistema</strong><small id="sessionLoginAt">--</small></div>
+    </aside>
+
+    <main class="superadmin-main">
+      <header class="superadmin-page-head">
+        <div><span class="superadmin-breadcrumb" id="cpanelBreadcrumb">Sistema / Vista general</span><h1 id="cpanelPageTitle">Panel de SuperAdministradores</h1><p id="cpanelPageDescription">Resumen central del sistema.</p></div>
+        <span class="superadmin-access-badge"><i class="bi bi-shield-lock-fill"></i> Acceso restringido</span>
+      </header>
+
+      <div id="cpanelDenied" class="superadmin-denied" hidden>
+        <i class="bi bi-shield-lock"></i>
+        <span>Esta consola es exclusiva para superadministradores internos.</span>
+      </div>
+
+      <div id="cpanelContent" hidden>
+        <section class="superadmin-metrics" data-cpanel-view="overview">
+          <article><i class="bi bi-person-gear"></i><div><small>Usuarios registrados</small><strong id="cpanelUserTotal">0</strong><span>Equipo interno y tiendas</span></div></article>
+          <article><i class="bi bi-person-check"></i><div><small>Accesos activos</small><strong id="cpanelUserActive">0</strong><span>Usuarios habilitados</span></div></article>
+          <article><i class="bi bi-broadcast-pin"></i><div><small>Servicio central</small><strong id="cpanelSyncState">--</strong><span id="cpanelSyncTime">Sin comprobar</span></div></article>
+          <article><i class="bi bi-server"></i><div><small>Entorno</small><strong>Produccion</strong><span>Google Apps Script</span></div></article>
+          <article><i class="bi bi-buildings"></i><div><small>Empresas</small><strong id="cpanelCompanyTotal">0</strong><span>Organizaciones registradas</span></div></article>
+          <article><i class="bi bi-key"></i><div><small>Licencias activas</small><strong id="cpanelLicenseActive">0</strong><span id="cpanelLicenseSummary">0 registradas</span></div></article>
+          <article><i class="bi bi-pc-display"></i><div><small>Equipos vinculados</small><strong id="cpanelDeviceTotal">0</strong><span>Instalaciones controladas</span></div></article>
+          <article><i class="bi bi-life-preserver"></i><div><small>Soporte abierto</small><strong id="cpanelSupportOpen">0</strong><span id="cpanelSupportUnread">0 mensajes sin leer</span></div></article>
+        </section>
+
+        <section class="superadmin-workspace">
+          <article class="superadmin-panel" data-cpanel-view="overview">
+            <div class="superadmin-panel-head"><div><span>Situacion actual</span><h2>Resumen operativo</h2><p>Alertas, vencimientos y actividad que requieren atencion.</p></div><i class="bi bi-activity"></i></div>
+            <div class="cpanel-overview-status" id="cpanelOverviewStatus"><div class="user-admin-empty">Cargando resumen del sistema...</div></div>
+            <div class="superadmin-panel-head cpanel-subhead"><div><span>Actividad reciente</span><h2>Ultimos movimientos</h2></div></div>
+            <div class="cpanel-audit-list" id="cpanelRecentActivity"></div>
+          </article>
+          <article class="superadmin-panel superadmin-users" id="credenciales" data-cpanel-view="users">
+            <div class="superadmin-panel-head"><div><span>Control de acceso</span><h2>Todos los usuarios</h2><p>Equipo interno, administradores y usuarios asociados a cada tienda.</p></div><i class="bi bi-person-lock"></i></div>
+            <form id="cpanelUserForm" class="settings-form-stack">
+              <input id="cpanelUserId" type="hidden">
+              <div class="settings-form-grid">
+                <label class="settings-field"><span>Nombre completo</span><input id="cpanelUserName" type="text" maxlength="120" required placeholder="Nombre del responsable"></label>
+                <label class="settings-field"><span>Usuario o correo</span><input id="cpanelUsername" type="text" maxlength="120" required placeholder="admin@sistema.com"></label>
+                <label class="settings-field"><span>Empresa asociada</span><select id="cpanelUserCompany" class="form-select"><option value="">Equipo interno / desarrolladores</option></select></label>
+                <label class="settings-field"><span>Nueva clave</span><input id="cpanelPassword" type="password" maxlength="120" autocomplete="new-password" placeholder="Minimo 10 caracteres"></label>
+                <label class="settings-field"><span>Perfil de acceso</span><select id="cpanelRole" class="form-select"><option value="admin_general">Superadministrador</option><option value="operador">Desarrollador / operador</option><option value="admin_empresa">Administrador de tienda</option><option value="supervisor">Supervisor de tienda</option><option value="cajero">Usuario de tienda</option></select></label>
+                <label class="settings-field"><span>Estado</span><select id="cpanelActive" class="form-select"><option value="SI">Activo</option><option value="NO">Inactivo</option></select></label>
+              </div>
+              <p class="settings-form-note" id="cpanelUserHint">La clave debe incluir mayuscula, minuscula, numero y simbolo. Al editar puedes dejarla vacia.</p>
+              <div class="settings-inline-actions">
+                <button class="btn btn-outline-secondary" id="cpanelUserCancel" type="button">Limpiar</button>
+                <button class="btn btn-brand" type="submit"><i class="bi bi-floppy"></i><span>Guardar credencial</span></button>
+              </div>
+            </form>
+            <div class="cpanel-user-list" id="cpanelUserList"><div class="user-admin-empty">Cargando credenciales...</div></div>
+          </article>
+
+          <div class="superadmin-side-stack">
+            <article class="superadmin-panel" id="perfiles" data-cpanel-view="companies">
+              <div class="superadmin-panel-head"><div><span>Empresas</span><h2>Perfiles independientes</h2><p>Edita los datos de una empresa sin modificar las demas.</p></div><i class="bi bi-buildings"></i></div>
+              <form id="cpanelProfileForm" class="settings-form-stack">
+                <label class="settings-field"><span>Perfil</span><select id="cpanelProfileCompany" class="form-select"><option value="">Perfil del sistema / desarrolladores</option></select></label>
+                <label class="settings-field"><span>Nombre</span><input id="cpanelProfileName" type="text" maxlength="160"></label>
+                <label class="settings-field"><span>NIT</span><input id="cpanelProfileNit" type="text" maxlength="80"></label>
+                <label class="settings-field"><span>Telefono</span><input id="cpanelProfilePhone" type="text" maxlength="80"></label>
+                <label class="settings-field"><span>Correo</span><input id="cpanelProfileEmail" type="email" maxlength="160"></label>
+                <label class="settings-field"><span>Direccion</span><input id="cpanelProfileAddress" type="text" maxlength="180"></label>
+                <label class="settings-field"><span>Ciudad</span><input id="cpanelProfileCity" type="text" maxlength="100"></label>
+                <label class="settings-field"><span>Responsable</span><input id="cpanelProfileManager" type="text" maxlength="140"></label>
+                <div class="settings-inline-actions"><button class="btn btn-brand" type="submit"><i class="bi bi-floppy"></i><span>Guardar perfil</span></button></div>
+              </form>
+            </article>
+            <article class="superadmin-panel" id="servicio" data-cpanel-view="infrastructure">
+              <div class="superadmin-panel-head"><div><span>Infraestructura</span><h2>Salud del sistema</h2><p>Estado tecnico del servicio central.</p></div><i class="bi bi-cloud-check"></i></div>
+              <div class="stack-list cpanel-status-list">
+                <div class="status-row"><span>Servicio</span><strong id="cpanelServiceStatus">Comprobando</strong></div>
+                <div class="status-row"><span>Modo</span><strong>Produccion</strong></div>
+                <div class="status-row"><span>Motor de datos</span><strong>Google Sheets</strong></div>
+                <div class="status-row"><span>Despliegue</span><strong id="cpanelDeploymentState">Disponible</strong></div>
+                <div class="status-row"><span>Ultima revision</span><strong id="cpanelLastCheck">--</strong></div>
+              </div>
+              <div class="settings-inline-actions mt-3">
+                <button class="btn btn-outline-secondary" id="cpanelTestConnection" type="button"><i class="bi bi-wifi"></i><span>Probar conexion</span></button>
+                <button class="btn btn-outline-secondary" id="cpanelDownloadDiagnostic" type="button"><i class="bi bi-download"></i><span>Diagnostico</span></button>
+              </div>
+            </article>
+
+            <article class="superadmin-panel" data-cpanel-view="overview">
+              <div class="superadmin-panel-head"><div><span>Herramientas</span><h2>Acciones globales</h2><p>Mantenimiento y comunicacion del sistema.</p></div><i class="bi bi-tools"></i></div>
+              <div class="settings-grid cpanel-tools-grid">
+                <a class="settings-tile" href="cPanel.html?view=communications"><i class="bi bi-megaphone"></i><strong>Notificaciones</strong><span>Publica avisos para todos los usuarios.</span></a>
+                <button class="settings-tile" id="cpanelForceSync" type="button"><i class="bi bi-arrow-repeat"></i><strong>Sincronizar ahora</strong><span>Recarga la informacion central.</span></button>
+                <button class="settings-tile danger" id="cpanelClearCache" type="button"><i class="bi bi-trash3"></i><strong>Limpiar cache</strong><span>Elimina temporales de este equipo.</span></button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="superadmin-standalone" data-cpanel-view="communications">
+          <article class="superadmin-panel">
+            <div class="superadmin-panel-head"><div><span>Mensajeria del sistema</span><h2>Notificaciones a empresas</h2><p>Publica o desactiva avisos globales y mensajes dirigidos.</p></div><i class="bi bi-megaphone"></i></div>
+            <form id="cpanelNotificationForm" class="settings-form-stack">
+              <label class="settings-field"><span>Destinatarios</span><select id="cpanelNotificationCompany" class="form-select"><option value="">Todas las empresas</option></select></label>
+              <label class="settings-field wide"><span>Mensaje</span><textarea id="cpanelNotificationMessage" class="form-control" rows="5" maxlength="1000" placeholder="Escribe el aviso que veran los usuarios."></textarea></label>
+              <div class="settings-inline-actions"><button class="btn btn-outline-secondary" id="cpanelNotificationClear" type="button"><i class="bi bi-x-circle"></i><span>Desactivar</span></button><button class="btn btn-brand" type="submit"><i class="bi bi-send"></i><span>Publicar notificacion</span></button></div>
+              <div class="cpanel-current-message"><small>Mensaje activo</small><p id="cpanelNotificationCurrent">Sin mensaje activo.</p></div>
+            </form>
+          </article>
+        </section>
+
+        <section class="superadmin-standalone" data-cpanel-view="audit">
+          <article class="superadmin-panel">
+            <div class="superadmin-panel-head"><div><span>Trazabilidad</span><h2>Auditoria central</h2><p>Eventos recientes de licencias, equipos y administracion.</p></div><i class="bi bi-journal-check"></i></div>
+            <div class="cpanel-audit-toolbar"><label class="settings-field"><span>Buscar evento</span><input id="cpanelAuditSearch" type="search" placeholder="Evento, detalle o equipo"></label><button class="btn btn-outline-secondary" id="cpanelAuditRefresh" type="button"><i class="bi bi-arrow-clockwise"></i><span>Actualizar</span></button></div>
+            <div class="cpanel-audit-list" id="cpanelAuditList"><div class="user-admin-empty">Cargando actividad...</div></div>
+          </article>
+        </section>
+
+        <section class="superadmin-standalone" data-cpanel-view="settings">
+          <div class="cpanel-settings-grid">
+            <article class="superadmin-panel"><div class="superadmin-panel-head"><div><span>Funcionamiento</span><h2>Preferencias de consola</h2><p>Comportamiento de este puesto de administracion.</p></div><i class="bi bi-sliders"></i></div><div class="settings-form-stack"><label class="settings-field"><span>Vista inicial</span><select id="cpanelDefaultView" class="form-select"><option value="overview">Vista general</option><option value="users">Usuarios</option><option value="companies">Empresas</option><option value="communications">Comunicaciones</option><option value="audit">Auditoria</option></select></label><label class="settings-field"><span>Actualizacion automatica</span><select id="cpanelRefreshInterval" class="form-select"><option value="0">Desactivada</option><option value="60">Cada minuto</option><option value="300">Cada 5 minutos</option><option value="900">Cada 15 minutos</option></select></label><label class="cpanel-toggle-row"><span><strong>Actualizar al ingresar</strong><small>Consulta usuarios, empresas y estado del servicio.</small></span><input id="cpanelAutoRefresh" type="checkbox"></label><label class="cpanel-toggle-row"><span><strong>Vista compacta</strong><small>Reduce espacios para mostrar mas informacion.</small></span><input id="cpanelCompactMode" type="checkbox"></label><label class="cpanel-toggle-row"><span><strong>Alertas de vencimiento</strong><small>Destaca licencias que vencen en los proximos 30 dias.</small></span><input id="cpanelExpiryAlerts" type="checkbox"></label><label class="cpanel-toggle-row"><span><strong>Confirmar acciones criticas</strong><small>Solicita confirmacion antes de limpiar datos temporales.</small></span><input id="cpanelConfirmCritical" type="checkbox"></label><div class="settings-inline-actions"><button class="btn btn-brand" id="cpanelSavePreferences" type="button"><i class="bi bi-floppy"></i><span>Guardar preferencias</span></button></div></div></article>
+            <article class="superadmin-panel"><div class="superadmin-panel-head"><div><span>Mantenimiento</span><h2>Servicio y datos locales</h2><p>Herramientas para revisar el funcionamiento del panel.</p></div><i class="bi bi-tools"></i></div><div class="settings-grid cpanel-tools-grid"><button class="settings-tile" id="cpanelSettingsDiagnostic" type="button"><i class="bi bi-activity"></i><strong>Probar servicio</strong><span>Comprueba la conexion central.</span></button><button class="settings-tile" id="cpanelSettingsSync" type="button"><i class="bi bi-arrow-repeat"></i><strong>Sincronizar</strong><span>Actualiza la informacion administrativa.</span></button><button class="settings-tile danger" id="cpanelSettingsClearCache" type="button"><i class="bi bi-trash3"></i><strong>Limpiar cache</strong><span>Elimina temporales del navegador.</span></button></div></article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="farmapos-data.js"></script>
+  <script>
+    (() => {
+      const apiUrl = document.querySelector('meta[name="farmapos-web-db-api-url"]')?.content || '';
+      let internalUsers = [];
+      let companies = [];
+      let licenses = [];
+      let devices = [];
+      let licenseHistory = [];
+      let supportTickets = [];
+      let autoRefreshTimer = null;
+      let lastDiagnostic = null;
+
+      const text = (id, value) => { const node = document.getElementById(id); if (node) node.textContent = String(value); };
+      const roleLabel = (role) => ({ admin: 'Superadministrador', operador: 'Desarrollador / operador', admin_empresa: 'Administrador de tienda', supervisor: 'Supervisor', cajero: 'Usuario de tienda' }[String(role).toLowerCase()] || role);
+      const companyName = (id) => companies.find((company) => String(company.id) === String(id))?.name || (id ? `Empresa ${id}` : 'Equipo interno');
+
+      function applyConsoleView() {
+        const requestedView = new URLSearchParams(window.location.search).get('view') || localStorage.getItem('cpanel_default_view') || 'overview';
+        const views = {
+          overview: ['Vista general', 'Panel de SuperAdministradores', 'Resumen central del sistema.'],
+          users: ['Administracion / Usuarios', 'Usuarios y accesos', 'Gestion de desarrolladores, administradores y usuarios de tiendas.'],
+          companies: ['Administracion / Empresas', 'Empresas y perfiles', 'Informacion independiente para cada empresa registrada.'],
+          infrastructure: ['Sistema / Infraestructura', 'Infraestructura', 'Estado tecnico y diagnostico del servicio central.'],
+          communications: ['Sistema / Comunicaciones', 'Comunicaciones', 'Notificaciones globales o dirigidas a una empresa.'],
+          audit: ['Sistema / Auditoria', 'Auditoria central', 'Actividad administrativa y eventos recientes del sistema.'],
+          settings: ['Sistema / Configuracion', 'Configuracion del panel', 'Preferencias de funcionamiento y mantenimiento.']
+        };
+        const view = views[requestedView] ? requestedView : 'overview';
+        document.querySelectorAll('[data-cpanel-view]').forEach((section) => {
+          section.hidden = section.dataset.cpanelView !== view;
+        });
+        document.querySelectorAll('[data-cpanel-nav]').forEach((link) => {
+          link.classList.toggle('active', link.dataset.cpanelNav === view);
+        });
+        text('cpanelBreadcrumb', views[view][0]);
+        text('cpanelPageTitle', views[view][1]);
+        text('cpanelPageDescription', views[view][2]);
+        document.body.dataset.cpanelView = view;
+      }
+
+      applyConsoleView();
+
+      function assertSuperAdmin() {
+        const role = typeof getNormalizedSessionRole === 'function' ? getNormalizedSessionRole() : '';
+        const allowed = ['admin', 'operador'].includes(role);
+        document.getElementById('cpanelDenied').hidden = allowed;
+        document.getElementById('cpanelContent').hidden = !allowed;
+        return allowed;
+      }
+
+      async function request(payload) {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+          cache: 'no-store'
+        });
+        const data = await response.json();
+        if (!data?.ok) throw new Error(data?.error || 'El servicio no pudo completar la solicitud.');
+        return data;
+      }
+
+      function renderUsers() {
+        text('cpanelUserTotal', internalUsers.length);
+        text('cpanelUserActive', internalUsers.filter((user) => user.active === 'SI').length);
+        const list = document.getElementById('cpanelUserList');
+        if (!internalUsers.length) {
+          list.innerHTML = '<div class="user-admin-empty">No hay credenciales internas registradas.</div>';
+          return;
+        }
+        list.innerHTML = internalUsers.map((user) => `
+          <article class="user-admin-item">
+            <div class="user-admin-head"><div><strong>${escapeHtml(user.name || user.username)}</strong><div class="user-admin-meta"><span>@${escapeHtml(user.username)}</span><span>${escapeHtml(companyName(user.companyId))}</span><span class="user-role-badge">${escapeHtml(roleLabel(user.role))}</span><span class="user-state-badge ${user.active === 'SI' ? 'is-active' : 'is-inactive'}">${user.active === 'SI' ? 'Activo' : 'Inactivo'}</span></div></div></div>
+            <div class="user-admin-actions"><button class="btn btn-sm btn-outline-secondary" type="button" data-edit-user="${escapeHtml(user.id)}"><i class="bi bi-pencil"></i><span>Editar</span></button><button class="btn btn-sm ${user.active === 'SI' ? 'btn-outline-danger' : 'btn-outline-success'}" type="button" data-toggle-user="${escapeHtml(user.id)}" data-active="${user.active === 'SI' ? 'NO' : 'SI'}">${user.active === 'SI' ? 'Inactivar' : 'Activar'}</button></div>
+          </article>`).join('');
+      }
+
+      async function loadUsers() {
+        const data = await request({ action: 'licensing_overview' });
+        companies = data.overview?.companies || [];
+        internalUsers = data.overview?.users || [];
+        licenses = data.overview?.licenses || [];
+        devices = data.overview?.devices || [];
+        licenseHistory = data.overview?.history || [];
+        const companyOptions = companies.map((company) => `<option value="${escapeHtml(company.id)}">${escapeHtml(company.name)}</option>`).join('');
+        document.getElementById('cpanelUserCompany').innerHTML = '<option value="">Equipo interno / desarrolladores</option>' + companyOptions;
+        document.getElementById('cpanelProfileCompany').innerHTML = '<option value="">Perfil del sistema / desarrolladores</option>' + companyOptions;
+        document.getElementById('cpanelNotificationCompany').innerHTML = '<option value="">Todas las empresas</option>' + companyOptions;
+        renderUsers();
+        renderAudit();
+        renderOverview();
+      }
+
+      async function loadSupportSummary() {
+        const data = await request({ action: 'support_overview', isInternal: true });
+        supportTickets = data.tickets || [];
+        renderOverview();
+      }
+
+      function renderOverview() {
+        const expiryAlertsEnabled = localStorage.getItem('cpanel_expiry_alerts') !== 'NO';
+        const activeLicenses = licenses.filter((item) => String(item.status).toUpperCase() === 'ACTIVA');
+        const now = Date.now();
+        const soon = now + (30 * 24 * 60 * 60 * 1000);
+        const expiring = activeLicenses.filter((item) => { const time = new Date(item.expiresAt || '').getTime(); return time && time >= now && time <= soon; });
+        const expired = licenses.filter((item) => { const time = new Date(item.expiresAt || '').getTime(); return time && time < now; });
+        const openTickets = supportTickets.filter((item) => !['RESUELTO', 'CERRADO'].includes(String(item.status).toUpperCase()));
+        const unread = supportTickets.reduce((sum, item) => sum + Number(item.unreadInternal || 0), 0);
+        text('cpanelCompanyTotal', companies.length);
+        text('cpanelLicenseActive', activeLicenses.length);
+        text('cpanelLicenseSummary', `${licenses.length} registradas`);
+        text('cpanelDeviceTotal', devices.length);
+        text('cpanelSupportOpen', openTickets.length);
+        text('cpanelSupportUnread', `${unread} mensajes sin leer`);
+        const status = document.getElementById('cpanelOverviewStatus');
+        if (status) status.innerHTML = [
+          { icon: 'bi-check-circle', label: 'Licencias operativas', value: activeLicenses.length, tone: 'success' },
+          { icon: 'bi-clock', label: 'Vencen en 30 dias', value: expiring.length, tone: expiryAlertsEnabled && expiring.length ? 'warn' : 'success' },
+          { icon: 'bi-exclamation-triangle', label: 'Licencias vencidas', value: expired.length, tone: expiryAlertsEnabled && expired.length ? 'danger' : 'success' },
+          { icon: 'bi-headset', label: 'Tickets pendientes', value: openTickets.length, tone: openTickets.length ? 'warn' : 'success' }
+        ].map((item) => `<div class="cpanel-overview-row is-${item.tone}"><i class="bi ${item.icon}"></i><span>${item.label}</span><strong>${item.value}</strong></div>`).join('');
+        const recent = document.getElementById('cpanelRecentActivity');
+        if (recent) recent.innerHTML = licenseHistory.length ? licenseHistory.slice().reverse().slice(0, 6).map((entry) => `<article class="cpanel-audit-item"><i class="bi bi-clock-history"></i><div><strong>${escapeHtml(entry.eventType || 'EVENTO')}</strong><p>${escapeHtml(entry.detail || 'Sin detalle')}</p><small>${escapeHtml(entry.createdAt || '')}</small></div></article>`).join('') : '<div class="user-admin-empty">Aun no hay actividad registrada.</div>';
+      }
+
+      function renderAudit() {
+        const search = String(document.getElementById('cpanelAuditSearch')?.value || '').trim().toLowerCase();
+        const rows = licenseHistory.filter((entry) => !search || [entry.eventType, entry.detail, entry.installationName, entry.installationId].join(' ').toLowerCase().includes(search));
+        const list = document.getElementById('cpanelAuditList');
+        if (!list) return;
+        list.innerHTML = rows.length ? rows.slice().reverse().slice(0, 150).map((entry) => `<article class="cpanel-audit-item"><i class="bi bi-clock-history"></i><div><strong>${escapeHtml(entry.eventType || 'EVENTO')}</strong><p>${escapeHtml(entry.detail || 'Sin detalle')}</p><small>${escapeHtml(entry.installationName || entry.installationId || 'Sistema')} · ${escapeHtml(entry.createdAt || '')}</small></div></article>`).join('') : '<div class="user-admin-empty">No hay eventos para esta busqueda.</div>';
+      }
+
+      async function loadNotification() {
+        const companyId = document.getElementById('cpanelNotificationCompany')?.value || '';
+        const response = await fetch(`${apiUrl}?mode=system_update&companyId=${encodeURIComponent(companyId)}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!data?.ok) throw new Error(data?.error || 'No fue posible cargar la notificacion.');
+        document.getElementById('cpanelNotificationMessage').value = data.message || '';
+        text('cpanelNotificationCurrent', data.message || 'Sin mensaje activo.');
+      }
+
+      async function saveNotification(message) {
+        const companyId = document.getElementById('cpanelNotificationCompany')?.value || '';
+        const session = typeof getCurrentSession === 'function' ? getCurrentSession() : null;
+        await request({ action: 'save_system_update', companyId, message, createdBy: session?.username || '' });
+        document.getElementById('cpanelNotificationMessage').value = message;
+        text('cpanelNotificationCurrent', message || 'Sin mensaje activo.');
+      }
+
+      function loadConsolePreferences() {
+        document.getElementById('cpanelAutoRefresh').checked = localStorage.getItem('cpanel_auto_refresh') !== 'NO';
+        document.getElementById('cpanelConfirmCritical').checked = localStorage.getItem('cpanel_confirm_critical') !== 'NO';
+        document.getElementById('cpanelCompactMode').checked = localStorage.getItem('cpanel_compact_mode') === 'SI';
+        document.getElementById('cpanelExpiryAlerts').checked = localStorage.getItem('cpanel_expiry_alerts') !== 'NO';
+        document.getElementById('cpanelDefaultView').value = localStorage.getItem('cpanel_default_view') || 'overview';
+        document.getElementById('cpanelRefreshInterval').value = localStorage.getItem('cpanel_refresh_interval') || '0';
+        document.body.classList.toggle('cpanel-compact', document.getElementById('cpanelCompactMode').checked);
+        scheduleAutoRefresh();
+      }
+
+      function scheduleAutoRefresh() {
+        if (autoRefreshTimer) window.clearInterval(autoRefreshTimer);
+        const seconds = Number(localStorage.getItem('cpanel_refresh_interval') || 0);
+        if (seconds > 0) autoRefreshTimer = window.setInterval(() => refreshAll().catch(() => {}), seconds * 1000);
+      }
+
+      async function clearConsoleCache() {
+        const confirmCritical = localStorage.getItem('cpanel_confirm_critical') !== 'NO';
+        if (confirmCritical) {
+          const confirmed = await showConfirmDialog('Se eliminaran datos temporales de este navegador. La informacion de Google Sheets no se borrara.', { title: 'Limpiar cache local', confirmText: 'Limpiar', cancelText: 'Cancelar', variant: 'warn' });
+          if (!confirmed) return;
+        }
+        const keep = ['farmapos_session', 'farmapos_web_db_api_url', 'cpanel_auto_refresh', 'cpanel_confirm_critical'];
+        Object.keys(localStorage).filter((key) => !keep.some((item) => key.toLowerCase().includes(item))).forEach((key) => localStorage.removeItem(key));
+        await showInfoDialog('La cache local fue limpiada.', { title: 'Mantenimiento completo', variant: 'success' });
+      }
+
+      async function loadSelectedProfile() {
+        const companyId = document.getElementById('cpanelProfileCompany').value;
+        const response = await fetch(`${apiUrl}?mode=company&companyId=${encodeURIComponent(companyId)}`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!data?.ok) throw new Error(data?.error || 'No fue posible cargar el perfil.');
+        const profile = data.profile || {};
+        ['Name', 'Nit', 'Phone', 'Email', 'Address', 'City', 'Manager'].forEach((field) => {
+          document.getElementById(`cpanelProfile${field}`).value = profile[field.toLowerCase()] || '';
+        });
+      }
+
+      async function loadDiagnostic(showResult = false) {
+        text('cpanelServiceStatus', 'Comprobando');
+        const response = await fetch(`${apiUrl}?mode=diagnostics`, { cache: 'no-store' });
+        const data = await response.json();
+        if (!data?.ok) throw new Error(data?.error || 'Respuesta invalida del servicio.');
+        lastDiagnostic = {
+          checkedAt: new Date().toISOString(),
+          endpoint: apiUrl,
+          updatedAt: data.updated_at || '',
+          spreadsheetId: data.spreadsheet_id || '',
+          spreadsheetName: data.spreadsheet_name || ''
+        };
+        const healthy = Boolean(data.ok);
+        text('cpanelServiceStatus', healthy ? 'Conectado' : 'No disponible');
+        text('cpanelSyncState', healthy ? 'En linea' : 'Error');
+        text('cpanelSyncTime', new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }));
+        text('cpanelDeploymentState', healthy ? 'Disponible' : 'No disponible');
+        text('cpanelLastCheck', new Date().toLocaleString('es-CO'));
+        if (showResult && typeof showInfoDialog === 'function') await showInfoDialog(healthy ? 'El servicio central funciona correctamente.' : 'El servicio central no se encuentra disponible.', { title: 'Salud del sistema', variant: healthy ? 'success' : 'warn' });
+      }
+
+      function resetForm() {
+        document.getElementById('cpanelUserForm').reset();
+        document.getElementById('cpanelUserId').value = '';
+        text('cpanelUserHint', 'La clave debe incluir mayuscula, minuscula, numero y simbolo. Al editar puedes dejarla vacia.');
+      }
+
+      async function refreshAll(showResult = false) {
+        await Promise.all([loadUsers(), loadDiagnostic(showResult), loadSupportSummary()]);
+      }
+
+      async function closeInternalSession() {
+        const confirmed = typeof showConfirmDialog === 'function'
+          ? await showConfirmDialog('Se cerrara la sesion de SuperAdmin y volveras al acceso interno.', { title: 'Cerrar sesion', confirmText: 'Cerrar sesion', cancelText: 'Cancelar', variant: 'warn' })
+          : window.confirm('¿Deseas cerrar la sesion?');
+        if (!confirmed) return;
+        if (autoRefreshTimer) window.clearInterval(autoRefreshTimer);
+        try { sessionStorage.removeItem('farmapos_session'); } catch (error) {}
+        try { localStorage.removeItem('farmapos_session'); } catch (error) {}
+        window.location.replace('login-interno.html');
+      }
+
+      document.addEventListener('DOMContentLoaded', async () => {
+        if (!assertSuperAdmin()) return;
+        loadConsolePreferences();
+        try {
+          if (localStorage.getItem('cpanel_auto_refresh') !== 'NO') await refreshAll();
+          else await Promise.all([loadUsers(), loadSupportSummary()]);
+          await loadSelectedProfile();
+        } catch (error) { text('cpanelServiceStatus', 'Sin conexion'); text('cpanelSyncState', 'Error'); text('cpanelUserHint', error.message); }
+
+        document.getElementById('cpanelRefresh')?.addEventListener('click', () => refreshAll(true).catch((error) => showInfoDialog(error.message, { title: 'No fue posible actualizar', variant: 'danger' })));
+        document.getElementById('cpanelLogout')?.addEventListener('click', closeInternalSession);
+        document.getElementById('cpanelTestConnection')?.addEventListener('click', () => loadDiagnostic(true).catch((error) => showInfoDialog(error.message, { title: 'Error de conexion', variant: 'danger' })));
+        document.getElementById('cpanelForceSync')?.addEventListener('click', () => refreshAll(true).catch((error) => showInfoDialog(error.message, { title: 'Error de sincronizacion', variant: 'danger' })));
+        document.getElementById('cpanelUserCancel')?.addEventListener('click', resetForm);
+        document.getElementById('cpanelAuditSearch')?.addEventListener('input', renderAudit);
+        document.getElementById('cpanelAuditRefresh')?.addEventListener('click', () => loadUsers().catch((error) => showInfoDialog(error.message, { title: 'Error de auditoria', variant: 'danger' })));
+        document.getElementById('cpanelNotificationCompany')?.addEventListener('change', () => loadNotification().catch((error) => showInfoDialog(error.message, { title: 'Error de comunicaciones', variant: 'danger' })));
+        document.getElementById('cpanelNotificationForm')?.addEventListener('submit', async (event) => { event.preventDefault(); try { const message = document.getElementById('cpanelNotificationMessage').value.trim(); await saveNotification(message); await showInfoDialog(message ? 'La notificacion fue publicada.' : 'La notificacion fue desactivada.', { title: 'Comunicaciones', variant: 'success' }); } catch (error) { await showInfoDialog(error.message, { title: 'No fue posible publicar', variant: 'danger' }); } });
+        document.getElementById('cpanelNotificationClear')?.addEventListener('click', async () => { try { await saveNotification(''); await showInfoDialog('La notificacion fue desactivada.', { title: 'Comunicaciones', variant: 'success' }); } catch (error) { await showInfoDialog(error.message, { title: 'No fue posible desactivar', variant: 'danger' }); } });
+        document.getElementById('cpanelSavePreferences')?.addEventListener('click', async () => { localStorage.setItem('cpanel_auto_refresh', document.getElementById('cpanelAutoRefresh').checked ? 'SI' : 'NO'); localStorage.setItem('cpanel_confirm_critical', document.getElementById('cpanelConfirmCritical').checked ? 'SI' : 'NO'); localStorage.setItem('cpanel_compact_mode', document.getElementById('cpanelCompactMode').checked ? 'SI' : 'NO'); localStorage.setItem('cpanel_expiry_alerts', document.getElementById('cpanelExpiryAlerts').checked ? 'SI' : 'NO'); localStorage.setItem('cpanel_default_view', document.getElementById('cpanelDefaultView').value); localStorage.setItem('cpanel_refresh_interval', document.getElementById('cpanelRefreshInterval').value); document.body.classList.toggle('cpanel-compact', document.getElementById('cpanelCompactMode').checked); renderOverview(); scheduleAutoRefresh(); await showInfoDialog('Las preferencias del panel fueron guardadas.', { title: 'Configuracion', variant: 'success' }); });
+        document.getElementById('cpanelSettingsDiagnostic')?.addEventListener('click', () => loadDiagnostic(true).catch((error) => showInfoDialog(error.message, { title: 'Error de conexion', variant: 'danger' })));
+        document.getElementById('cpanelSettingsSync')?.addEventListener('click', () => refreshAll(true).catch((error) => showInfoDialog(error.message, { title: 'Error de sincronizacion', variant: 'danger' })));
+        document.getElementById('cpanelSettingsClearCache')?.addEventListener('click', clearConsoleCache);
+
+        if (document.body.dataset.cpanelView === 'communications') loadNotification().catch((error) => showInfoDialog(error.message, { title: 'Error de comunicaciones', variant: 'danger' }));
+
+        document.getElementById('cpanelUserForm')?.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const password = document.getElementById('cpanelPassword').value.trim();
+          const id = document.getElementById('cpanelUserId').value.trim();
+          if (!id && !password) return showInfoDialog('Debes crear una clave para la nueva credencial.', { title: 'Clave requerida', variant: 'warn' });
+          if (password && !(password.length >= 10 && /[a-z]/.test(password) && /[A-Z]/.test(password) && /\d/.test(password) && /[^A-Za-z0-9]/.test(password))) return showInfoDialog('La clave debe tener minimo 10 caracteres, mayuscula, minuscula, numero y simbolo.', { title: 'Clave debil', variant: 'warn' });
+          try {
+            const companyId = document.getElementById('cpanelUserCompany').value;
+            const role = document.getElementById('cpanelRole').value;
+            if (!companyId && !['admin_general', 'operador'].includes(role)) return showInfoDialog('Selecciona una empresa para los usuarios de tienda.', { title: 'Empresa requerida', variant: 'warn' });
+            if (companyId && ['admin_general', 'operador'].includes(role)) return showInfoDialog('Los accesos globales deben pertenecer al equipo interno, sin empresa asociada.', { title: 'Perfil incompatible', variant: 'warn' });
+            await request({ action: 'save_user', user: { id, companyId, name: document.getElementById('cpanelUserName').value.trim(), username: document.getElementById('cpanelUsername').value.trim().toLowerCase(), password, role, active: document.getElementById('cpanelActive').value } });
+            resetForm();
+            await loadUsers();
+            await showInfoDialog('La credencial interna quedo guardada.', { title: 'Credencial guardada', variant: 'success' });
+          } catch (error) { await showInfoDialog(error.message, { title: 'No fue posible guardar', variant: 'danger' }); }
+        });
+
+        document.getElementById('cpanelUserList')?.addEventListener('click', async (event) => {
+          const edit = event.target.closest('[data-edit-user]');
+          const toggle = event.target.closest('[data-toggle-user]');
+          if (edit) {
+            const user = internalUsers.find((item) => item.id === edit.dataset.editUser);
+            if (!user) return;
+            document.getElementById('cpanelUserId').value = user.id;
+            document.getElementById('cpanelUserName').value = user.name;
+            document.getElementById('cpanelUsername').value = user.username;
+            document.getElementById('cpanelPassword').value = '';
+            document.getElementById('cpanelUserCompany').value = user.companyId || '';
+            document.getElementById('cpanelRole').value = user.role === 'admin' ? 'admin_general' : user.role;
+            document.getElementById('cpanelActive').value = user.active;
+            text('cpanelUserHint', `Editando a ${user.name}. Deja la clave vacia para conservarla.`);
+          }
+          if (toggle) {
+            try { await request({ action: 'set_user_active', id: toggle.dataset.toggleUser, active: toggle.dataset.active }); await loadUsers(); } catch (error) { await showInfoDialog(error.message, { title: 'No fue posible cambiar el acceso', variant: 'danger' }); }
+          }
+        });
+
+        document.getElementById('cpanelDownloadDiagnostic')?.addEventListener('click', async () => {
+          if (!lastDiagnostic) await loadDiagnostic();
+          const blob = new Blob([JSON.stringify(lastDiagnostic, null, 2)], { type: 'application/json' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = `diagnostico-sistema-${new Date().toISOString().slice(0, 10)}.json`;
+          link.click();
+          URL.revokeObjectURL(link.href);
+        });
+
+        document.getElementById('cpanelProfileCompany')?.addEventListener('change', () => loadSelectedProfile().catch((error) => showInfoDialog(error.message, { title: 'Error de perfil', variant: 'danger' })));
+        document.getElementById('cpanelProfileForm')?.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          const companyId = document.getElementById('cpanelProfileCompany').value;
+          const profile = {};
+          ['Name', 'Nit', 'Phone', 'Email', 'Address', 'City', 'Manager'].forEach((field) => { profile[field.toLowerCase()] = document.getElementById(`cpanelProfile${field}`).value.trim(); });
+          try {
+            await request({ action: 'save_company_profile', companyId, profile });
+            await showInfoDialog(`Perfil de ${companyName(companyId)} guardado de forma independiente.`, { title: 'Perfil guardado', variant: 'success' });
+          } catch (error) { await showInfoDialog(error.message, { title: 'No fue posible guardar', variant: 'danger' }); }
+        });
+
+        document.getElementById('cpanelClearCache')?.addEventListener('click', async () => {
+          await clearConsoleCache();
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

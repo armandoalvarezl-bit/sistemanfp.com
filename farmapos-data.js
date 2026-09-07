@@ -31,12 +31,31 @@ const WEB_DB_API_STORAGE_KEY = "farmapos_web_db_api_url";
 const DAILY_WELCOME_STORAGE_KEY = "farmapos_daily_welcome_seen";
 const SESSION_WELCOME_STORAGE_KEY = "farmapos_session_welcome_seen";
 const DASHBOARD_LAUNCH_BANNER_STORAGE_KEY = "farmapos_dashboard_launch_banner_seen_v1";
-const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbwqaQ2LBi6FM-d8QzoK4GmFNWMfM5DxlPFSF2Bp6KazKzz3voU8_DxM78j08WYCVM7R-A/exec";
-const API_URL = "https://script.google.com/macros/s/AKfycbwqaQ2LBi6FM-d8QzoK4GmFNWMfM5DxlPFSF2Bp6KazKzz3voU8_DxM78j08WYCVM7R-A/exec";
+const INVENTORY_API_URL = "https://script.google.com/macros/s/AKfycbwGGUxjvdyJhrjPZwjwujFMxbWMDDRwIxpB-SHgkvxsjbj-CKWSTp75Jb_LVUndpmIGYA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwGGUxjvdyJhrjPZwjwujFMxbWMDDRwIxpB-SHgkvxsjbj-CKWSTp75Jb_LVUndpmIGYA/exec";
 const desktopDb = window.farmaposDesktop?.db || null;
 const ONLINE_EXCEL_ONLY = true;
 const browserStorage = window.sessionStorage;
 const persistentStorage = window.localStorage;
+const TENANT_STORAGE_KEYS = new Set([
+  STORAGE_KEYS.inventory,
+  STORAGE_KEYS.clients,
+  STORAGE_KEYS.suppliers,
+  STORAGE_KEYS.purchases,
+  STORAGE_KEYS.returns,
+  STORAGE_KEYS.promotions,
+  STORAGE_KEYS.auditLogs,
+  STORAGE_KEYS.sales,
+  STORAGE_KEYS.lastTicket,
+  STORAGE_KEYS.inventorySyncMeta,
+  STORAGE_KEYS.cashClosures,
+  STORAGE_KEYS.cashClosureDraft,
+  STORAGE_KEYS.cashWithdrawals,
+  STORAGE_KEYS.pharmacyProfile,
+  STORAGE_KEYS.printerPreferences,
+  STORAGE_KEYS.dianConfig,
+  STORAGE_KEYS.dianTestResult
+]);
 const WEB_DB_API_URL = resolveWebDbApiUrl();
 const AUTH_DEBUG_STORAGE_KEY = "farmapos_auth_debug";
 const DEFAULT_BRAND_LOGO = "assets/logo/logo-farmapos.png";
@@ -132,9 +151,28 @@ const COMMON_INVENTORY_PRESETS = {
   ]
 };
 
+function getStorageCompanyScope() {
+  try {
+    const rawSession = browserStorage.getItem(STORAGE_KEYS.session);
+    const rawLicense = browserStorage.getItem(STORAGE_KEYS.license);
+    const session = rawSession ? JSON.parse(rawSession) : null;
+    const license = rawLicense ? JSON.parse(rawLicense) : null;
+    return String(session?.companyId || license?.companyId || license?.licenseCompanyId || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function getScopedStorageKey(key) {
+  if (!TENANT_STORAGE_KEYS.has(key)) return key;
+  const companyId = getStorageCompanyScope();
+  return companyId ? `${key}__company_${companyId}` : `${key}__internal`;
+}
+
 function loadData(key, fallback) {
   try {
-    const stored = browserStorage.getItem(key) || persistentStorage.getItem(key);
+    const scopedKey = getScopedStorageKey(key);
+    const stored = browserStorage.getItem(scopedKey) || persistentStorage.getItem(scopedKey);
     return stored ? JSON.parse(stored) : fallback;
   } catch {
     return fallback;
@@ -142,20 +180,23 @@ function loadData(key, fallback) {
 }
 
 function saveDataEntry(key, value) {
+  const scopedKey = getScopedStorageKey(key);
   const serialized = JSON.stringify(value);
-  browserStorage.setItem(key, serialized);
-  persistentStorage.setItem(key, serialized);
+  browserStorage.setItem(scopedKey, serialized);
+  persistentStorage.setItem(scopedKey, serialized);
 }
 
 function saveTextEntry(key, value) {
+  const scopedKey = getScopedStorageKey(key);
   const normalized = String(value ?? "");
-  browserStorage.setItem(key, normalized);
-  persistentStorage.setItem(key, normalized);
+  browserStorage.setItem(scopedKey, normalized);
+  persistentStorage.setItem(scopedKey, normalized);
 }
 
 function removeDataEntry(key) {
-  browserStorage.removeItem(key);
-  persistentStorage.removeItem(key);
+  const scopedKey = getScopedStorageKey(key);
+  browserStorage.removeItem(scopedKey);
+  persistentStorage.removeItem(scopedKey);
 }
 
 function resolveWebDbApiUrl() {
@@ -560,14 +601,29 @@ function normalizeCashClosureDraft(draft) {
 }
 
 function getCashSessionStart() {
-  if (!state.cashClosureDraft.isOpen || !state.cashClosureDraft.openedAt) return null;
-  const openedAt = new Date(state.cashClosureDraft.openedAt);
-  return Number.isNaN(openedAt.getTime()) ? null : openedAt;
+  if (!state.cashClosureDraft.isOpen) return null;
+
+  const today = normalizeInputDateValue(new Date());
+  const latestClosure = state.cashClosures
+    .filter((closure) => normalizeInputDateValue(closure.date || closure.createdAt) === today)
+    .map((closure) => new Date(closure.createdAt || closure.date))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((left, right) => right.getTime() - left.getTime())[0];
+
+  if (latestClosure) return latestClosure;
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  return dayStart;
 }
 
 function parseTimeToMinutes(timeText) {
   const text = String(timeText || "").trim().toLowerCase();
   if (!text) return null;
+
+  const parsedDate = new Date(text);
+  if (!Number.isNaN(parsedDate.getTime())) {
+    return parsedDate.getHours() * 60 + parsedDate.getMinutes();
+  }
 
   const normalized = text
     .replace(/\./g, "")
@@ -604,7 +660,17 @@ function isRecordInCurrentCashSession(dateValue, timeValue) {
 }
 
 function getCurrentCashSessionSales() {
-  return getActiveSales().filter((sale) => isRecordInCurrentCashSession(sale.date, sale.time));
+  return getActiveSales().filter((sale) => {
+    const deliveredAt = normalizeSaleDeliveryStatus(sale?.deliveryStatus) === "entregado"
+      ? String(sale?.deliveryUpdatedAt || "").trim()
+      : "";
+    const createdAt = String(sale?.createdAt || "").trim();
+    return deliveredAt
+      ? isRecordInCurrentCashSession(deliveredAt, deliveredAt)
+      : createdAt
+        ? isRecordInCurrentCashSession(createdAt, createdAt)
+        : isRecordInCurrentCashSession(sale.date, sale.time);
+  });
 }
 
 function getCurrentCashSessionWithdrawals() {
@@ -639,7 +705,7 @@ function normalizePharmacyProfile(profile) {
 }
 
 function savePharmacyProfile() {
-  persistentStorage.setItem(STORAGE_KEYS.pharmacyProfile, JSON.stringify(state.pharmacyProfile));
+  persistentStorage.setItem(getScopedStorageKey(STORAGE_KEYS.pharmacyProfile), JSON.stringify(state.pharmacyProfile));
 }
 
 function getDefaultDianConfig() {
@@ -678,7 +744,7 @@ function normalizeDianConfig(config) {
 }
 
 function saveDianConfig() {
-  persistentStorage.setItem(STORAGE_KEYS.dianConfig, JSON.stringify(state.dianConfig));
+  persistentStorage.setItem(getScopedStorageKey(STORAGE_KEYS.dianConfig), JSON.stringify(state.dianConfig));
 }
 
 function getDefaultDianTestResult() {
@@ -711,7 +777,7 @@ function normalizeDianTestResult(result) {
 }
 
 function saveDianTestResult() {
-  persistentStorage.setItem(STORAGE_KEYS.dianTestResult, JSON.stringify(state.dianTestResult));
+  persistentStorage.setItem(getScopedStorageKey(STORAGE_KEYS.dianTestResult), JSON.stringify(state.dianTestResult));
 }
 
 function getDianTestResultSummary(result = state.dianTestResult) {
@@ -853,7 +919,7 @@ function normalizePrinterPreferences(preferences) {
 }
 
 function savePrinterPreferences() {
-  persistentStorage.setItem(STORAGE_KEYS.printerPreferences, JSON.stringify(state.printerPreferences));
+  persistentStorage.setItem(getScopedStorageKey(STORAGE_KEYS.printerPreferences), JSON.stringify(state.printerPreferences));
 }
 
 function getActiveTicketPrinterName() {
@@ -1204,7 +1270,11 @@ function showSystemUpdateNotification(message, options = {}) {
 
 async function fetchSystemUpdateNotification() {
   try {
-    const url = `${INVENTORY_API_URL}?mode=system_update`;
+    const selectedCompanyId = String(document.getElementById("systemUpdateCompanyId")?.value || "").trim();
+    const companyId = isAdminSession() && document.body.dataset.page === "system-update"
+      ? selectedCompanyId
+      : getCompanyProfileScope();
+    const url = `${INVENTORY_API_URL}?mode=system_update&companyId=${encodeURIComponent(companyId)}`;
     const response = await fetchJsonWithTimeout(url, {
       method: "GET",
       headers: {
@@ -1227,7 +1297,7 @@ async function loadSystemUpdateNotificationSettings() {
     const message = await fetchSystemUpdateNotification();
     const textarea = document.getElementById("systemUpdateNotificationMessage");
     const preview = document.getElementById("currentSystemUpdateMessage");
-    if (textarea && message) textarea.value = message;
+    if (textarea) textarea.value = message;
     if (preview) preview.textContent = message || "Sin mensaje activo.";
   } catch {
     // Ignoramos errores de carga de la notificación.
@@ -1251,10 +1321,15 @@ async function maybeShowPendingSystemUpdateNotification() {
 
 async function sendSystemUpdateNotification() {
   const message = String(document.getElementById("systemUpdateNotificationMessage")?.value || "").trim();
+  const companyId = String(document.getElementById("systemUpdateCompanyId")?.value || "").trim();
   const isClearing = !message;
 
   try {
-    await postExcelAction("save_system_update", { message });
+    await postExcelAction("save_system_update", {
+      message,
+      companyId,
+      createdBy: String(sessionState?.username || sessionState?.user || "SuperAdmin").trim()
+    });
     if (isClearing) {
       showSystemUpdateNotification("Notificacion desactivada.", {
         title: "Actualizacion del sistema",
@@ -1688,6 +1763,11 @@ function normalizeInputDateValue(value) {
   const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (isoMatch) return isoMatch[0];
 
+  const latinMatch = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (latinMatch) {
+    return `${latinMatch[3]}-${latinMatch[2].padStart(2, "0")}-${latinMatch[1].padStart(2, "0")}`;
+  }
+
   const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) return text;
 
@@ -1835,8 +1915,29 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 15000) {
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, {
-      ...options,
+    let scopedUrl = String(url || "");
+    const scopedOptions = { ...options };
+    const isAppsScriptRequest = Boolean(INVENTORY_API_URL && scopedUrl.startsWith(INVENTORY_API_URL));
+    const companyId = typeof getCompanyProfileScope === "function" ? getCompanyProfileScope() : "";
+
+    if (isAppsScriptRequest && companyId && String(scopedOptions.method || "GET").toUpperCase() === "GET" && !/[?&]companyId=/.test(scopedUrl)) {
+      scopedUrl += `${scopedUrl.includes("?") ? "&" : "?"}companyId=${encodeURIComponent(companyId)}`;
+    }
+
+    if (isAppsScriptRequest && String(scopedOptions.method || "GET").toUpperCase() === "POST" && typeof scopedOptions.body === "string") {
+      try {
+        const body = JSON.parse(scopedOptions.body);
+        if (body && typeof body === "object" && !body.companyId && !body.company_id && companyId) {
+          body.companyId = companyId;
+          scopedOptions.body = JSON.stringify(body);
+        }
+      } catch {
+        // Conserva cuerpos no JSON sin modificarlos.
+      }
+    }
+
+    const response = await fetch(scopedUrl, {
+      ...scopedOptions,
       signal: controller.signal
     });
 
@@ -2218,7 +2319,7 @@ const state = {
   editingCashClosureId: "",
   cashClosureEditorBackup: null,
   editingWithdrawalId: "",
-  lastTicketHtml: browserStorage.getItem(STORAGE_KEYS.lastTicket) || persistentStorage.getItem(STORAGE_KEYS.lastTicket) || "",
+  lastTicketHtml: browserStorage.getItem(getScopedStorageKey(STORAGE_KEYS.lastTicket)) || persistentStorage.getItem(getScopedStorageKey(STORAGE_KEYS.lastTicket)) || "",
   cart: new Map(),
   redeemedPoints: 0,
   selectedClientId: "",
@@ -2226,28 +2327,28 @@ const state = {
   inventorySyncMeta: loadSyncMeta(),
   pharmacyProfile: normalizePharmacyProfile((() => {
     try {
-      return JSON.parse(persistentStorage.getItem(STORAGE_KEYS.pharmacyProfile) || "null") || getDefaultPharmacyProfile();
+      return JSON.parse(persistentStorage.getItem(getScopedStorageKey(STORAGE_KEYS.pharmacyProfile)) || "null") || getDefaultPharmacyProfile();
     } catch {
       return getDefaultPharmacyProfile();
     }
   })()),
   dianConfig: normalizeDianConfig((() => {
     try {
-      return JSON.parse(persistentStorage.getItem(STORAGE_KEYS.dianConfig) || "null") || getDefaultDianConfig();
+      return JSON.parse(persistentStorage.getItem(getScopedStorageKey(STORAGE_KEYS.dianConfig)) || "null") || getDefaultDianConfig();
     } catch {
       return getDefaultDianConfig();
     }
   })()),
   dianTestResult: normalizeDianTestResult((() => {
     try {
-      return JSON.parse(persistentStorage.getItem(STORAGE_KEYS.dianTestResult) || "null") || getDefaultDianTestResult();
+      return JSON.parse(persistentStorage.getItem(getScopedStorageKey(STORAGE_KEYS.dianTestResult)) || "null") || getDefaultDianTestResult();
     } catch {
       return getDefaultDianTestResult();
     }
   })()),
   printerPreferences: normalizePrinterPreferences((() => {
     try {
-      return JSON.parse(persistentStorage.getItem(STORAGE_KEYS.printerPreferences) || "null") || getDefaultPrinterPreferences();
+      return JSON.parse(persistentStorage.getItem(getScopedStorageKey(STORAGE_KEYS.printerPreferences)) || "null") || getDefaultPrinterPreferences();
     } catch {
       return getDefaultPrinterPreferences();
     }
@@ -2608,7 +2709,21 @@ function isEditingSettingsProfile() {
 }
 
 function shouldAutoSyncSettingsProfile() {
-  return document.body.dataset.page !== "settings";
+  return !isEditingSettingsProfile();
+}
+
+function isCompanyProfileComplete(profile) {
+  return ["name", "nit", "phone", "email", "address", "city", "manager"]
+    .every((field) => String(profile?.[field] || "").trim());
+}
+
+function isCompanyOnboardingPage() {
+  return document.body.dataset.page === "settings"
+    && new URLSearchParams(window.location.search).get("onboarding") === "1";
+}
+
+function getCompanyProfileScope() {
+  return String(sessionState?.companyId || getCurrentLicenseState()?.companyId || getCurrentLicenseState()?.licenseCompanyId || "").trim();
 }
 
 function getDesktopCompanyPayload(payload = {}) {
@@ -2685,7 +2800,14 @@ function getLinkFileName(href) {
 }
 
 function getAllowedPagesByRole(role) {
-  if (role === "admin" || role === "operador") return null;
+  if (role === "admin" || role === "operador") {
+    return new Set([
+      "cpanel.html",
+      "licencias.html",
+      "system-update.html",
+      "soporte.html"
+    ]);
+  }
 
   if (role === "admin_empresa") {
     return new Set([
@@ -2749,7 +2871,7 @@ function applyRolePermissions() {
   }
 
   if (!allowedPages.has(currentPage)) {
-    window.location.href = "dashboard.html";
+    window.location.href = role === "admin" || role === "operador" ? "cPanel.html" : "dashboard.html";
     return;
   }
 
@@ -3594,7 +3716,7 @@ function buildSalesReportModel(period = state.reportPeriod || "day") {
 
   const paymentSummary = ["Efectivo", "Tarjeta", "Transferencia"].map((method) => ({
     method,
-    total: sales.filter((sale) => sale.paymentMethod === method).reduce((sum, sale) => sum + sale.total, 0)
+    total: getSalesByPaymentMethod(sales, method).reduce((sum, sale) => sum + sale.total, 0)
   }));
 
   const productSummary = new Map();
@@ -3748,12 +3870,12 @@ function buildSalesReportHtml(period = state.reportPeriod || "day") {
 
 function buildCashClosureModel() {
   const today = normalizeInputDateValue(new Date());
-  const todaySales = getCurrentCashSessionSales().filter((sale) => normalizeInputDateValue(sale.date) === today);
-  const cashSales = todaySales.filter((sale) => sale.paymentMethod === "Efectivo").reduce((sum, sale) => sum + sale.total, 0);
-  const cardSales = todaySales.filter((sale) => sale.paymentMethod === "Tarjeta").reduce((sum, sale) => sum + sale.total, 0);
-  const transferSales = todaySales.filter((sale) => sale.paymentMethod === "Transferencia").reduce((sum, sale) => sum + sale.total, 0);
-  const totalSales = todaySales.reduce((sum, sale) => sum + sale.total, 0);
-  const units = todaySales.reduce((sum, sale) => sum + sale.items.reduce((acc, item) => acc + item.quantity, 0), 0);
+  const sessionSales = getCurrentCashSessionSales();
+  const cashSales = getSalesByPaymentMethod(sessionSales, "Efectivo").reduce((sum, sale) => sum + sale.total, 0);
+  const cardSales = getSalesByPaymentMethod(sessionSales, "Tarjeta").reduce((sum, sale) => sum + sale.total, 0);
+  const transferSales = getSalesByPaymentMethod(sessionSales, "Transferencia").reduce((sum, sale) => sum + sale.total, 0);
+  const totalSales = sessionSales.reduce((sum, sale) => sum + sale.total, 0);
+  const units = sessionSales.reduce((sum, sale) => sum + sale.items.reduce((acc, item) => acc + item.quantity, 0), 0);
   const withdrawalsTotal = getTodayCashWithdrawalsTotal();
   const openingAmount = Number(state.cashClosureDraft.openingBase || state.cashClosureDraft.openingAmount || 0);
   const countedCash = Number(state.cashClosureDraft.countedCash || 0);
@@ -3768,10 +3890,10 @@ function buildCashClosureModel() {
     closureNumber,
     date: today,
     label: formatDisplayDate(today),
-    sales: todaySales,
+    sales: sessionSales,
     totalSales,
     units,
-    transactions: todaySales.length,
+    transactions: sessionSales.length,
     openingAmount,
     countedCash,
     withdrawalsTotal,
@@ -3797,8 +3919,7 @@ function isCashDrawerOpen() {
 }
 
 function getCurrentCashDrawerAmount() {
-  const cashSales = getCurrentCashSessionSales()
-    .filter((sale) => sale.paymentMethod === "Efectivo")
+  const cashSales = getSalesByPaymentMethod(getCurrentCashSessionSales(), "Efectivo")
     .reduce((sum, sale) => sum + sale.total, 0);
   const openingAmount = Number(state.cashClosureDraft.openingBase || state.cashClosureDraft.openingAmount || 0);
   const withdrawalsTotal = getTodayCashWithdrawalsTotal();
@@ -3806,8 +3927,7 @@ function getCurrentCashDrawerAmount() {
 }
 
 function getCurrentCashSalesExposureAmount() {
-  const cashSales = getCurrentCashSessionSales()
-    .filter((sale) => sale.paymentMethod === "Efectivo")
+  const cashSales = getSalesByPaymentMethod(getCurrentCashSessionSales(), "Efectivo")
     .reduce((sum, sale) => sum + sale.total, 0);
   const withdrawalsTotal = getTodayCashWithdrawalsTotal();
   return cashSales - withdrawalsTotal;
@@ -4006,8 +4126,8 @@ function buildMonthClosureModel(monthKey = getCurrentMonthKey()) {
   const closures = state.cashClosures.map(normalizeCashClosureRecord).filter((closure) => isDateInMonth(closure.date, normalizedMonth));
   const paymentMethods = ["Efectivo", "Tarjeta", "Transferencia"].map((method) => ({
     method,
-    total: sales.filter((sale) => sale.paymentMethod === method).reduce((sum, sale) => sum + Number(sale.total || 0), 0),
-    count: sales.filter((sale) => sale.paymentMethod === method).length
+    total: getSalesByPaymentMethod(sales, method).reduce((sum, sale) => sum + Number(sale.total || 0), 0),
+    count: getSalesByPaymentMethod(sales, method).length
   }));
   const categoryMap = new Map();
   const productMap = new Map();
@@ -4923,6 +5043,7 @@ function renderCashClosurePage() {
 function renderCashWithdrawalsPage() {
   setText("withdrawalCashierName", sessionState.user || "Cajero");
   setText("withdrawalCashierUser", sessionState.username || "--");
+  setText("withdrawalCurrentDrawer", formatCurrency(getCurrentCashDrawerAmount()));
   setText("withdrawalAvailableCash", formatCurrency(getCurrentWithdrawableCashAmount()));
   setText("withdrawalTodayTotal", formatCurrency(getTodayCashWithdrawalsTotal()));
   setText("withdrawalTodayCount", String(getTodayCashWithdrawals().length));
@@ -4964,6 +5085,16 @@ function renderCashWithdrawalsPage() {
         </article>
       `).join("")
     : `<div class="empty-state compact-empty"><p>Aun no hay retiros registrados.</p></div>`;
+}
+
+async function refreshCashDrawerControlData() {
+  await Promise.all([
+    syncSalesFromApi(),
+    syncCashWithdrawalsFromApi(),
+    syncCashClosuresFromApi()
+  ]);
+  if (document.body.dataset.page === "cash-closure") renderCashClosurePage();
+  if (document.body.dataset.page === "cash-withdrawal") renderCashWithdrawalsPage();
 }
 
 function bindCashClosureEvents() {
@@ -5393,7 +5524,7 @@ function renderDashboard() {
 
   setText("dailySalesValue", formatCurrency(todaySales.reduce((sum, sale) => sum + sale.total, 0)));
   setText("dailySalesCount", `${todaySales.length} transacciones`);
-  setText("cashValue", formatCurrency(activeSales.filter((sale) => sale.paymentMethod === "Efectivo").reduce((sum, sale) => sum + sale.total, 0)));
+  setText("cashValue", formatCurrency(getSalesByPaymentMethod(activeSales, "Efectivo").reduce((sum, sale) => sum + sale.total, 0)));
   setText("inventoryCountValue", String(state.inventory.length));
   setText("lowStockValue", `${low} con stock bajo`);
   setText("clientCountValue", String(state.clients.length));
@@ -5405,7 +5536,7 @@ function renderDashboard() {
   setText("dashboardInventorySummary", `${state.inventory.length} productos`);
   setText("dashboardClientSummary", `${state.clients.length} clientes`);
   setText("dashboardSalesSummary", `${activeSales.length} ventas`);
-  setText("dashboardCashSummary", formatCurrency(activeSales.filter((sale) => sale.paymentMethod === "Efectivo").reduce((sum, sale) => sum + sale.total, 0)));
+  setText("dashboardCashSummary", formatCurrency(getSalesByPaymentMethod(activeSales, "Efectivo").reduce((sum, sale) => sum + sale.total, 0)));
   setText("dashboardStockHealth", out > 0 ? "Critico" : low > 0 ? "Atencion" : "Estable");
 
   setText("dashboardPharmacyName", pharmacy.name || "Sistema Facturacion");
@@ -5991,9 +6122,9 @@ function normalizeCashClosureRecord(record, index) {
       ? record.sales.map((sale) => ({
           ticketNumber: String(sale?.ticketNumber || "").trim(),
           total: Number(sale?.total || 0),
-          time: String(sale?.time || "").trim(),
+          time: normalizeCashTimeValue(sale?.time || ""),
           clientName: String(sale?.clientName || "Cliente general").trim(),
-          paymentMethod: String(sale?.paymentMethod || "Efectivo").trim()
+          paymentMethod: normalizePaymentMethod(sale?.paymentMethod)
         }))
       : []
   };
@@ -6046,6 +6177,28 @@ function normalizeCashTimeValue(value) {
   return text;
 }
 
+function normalizePaymentMethod(value) {
+  const normalized = String(value || "Efectivo")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ");
+
+  if (["tarjeta", "tarjeta debito", "tarjeta credito", "debito", "credito", "datafono", "datáfono"].includes(normalized)) {
+    return "Tarjeta";
+  }
+  if (["transferencia", "transferencia bancaria", "nequi", "daviplata", "bancolombia", "qr"].includes(normalized)) {
+    return "Transferencia";
+  }
+  return "Efectivo";
+}
+
+function getSalesByPaymentMethod(sales, method) {
+  const normalizedMethod = normalizePaymentMethod(method);
+  return (Array.isArray(sales) ? sales : []).filter((sale) => normalizePaymentMethod(sale?.paymentMethod) === normalizedMethod);
+}
+
 function normalizeSaleRecord(sale, index) {
   const normalizedDate = normalizeInputDateValue(sale?.date || "");
   return {
@@ -6054,8 +6207,9 @@ function normalizeSaleRecord(sale, index) {
     clientName: String(sale?.clientName || "Cliente general").trim(),
     clientDocument: String(sale?.clientDocument || "").trim(),
     date: normalizedDate,
-    time: String(sale?.time || "").trim(),
-    paymentMethod: String(sale?.paymentMethod || "Efectivo").trim(),
+    time: normalizeCashTimeValue(sale?.time || ""),
+    createdAt: String(sale?.createdAt || sale?.creado_en || "").trim(),
+    paymentMethod: normalizePaymentMethod(sale?.paymentMethod),
     cashReceived: Number(sale?.cashReceived || 0),
     change: Number(sale?.change || 0),
     subtotal: Number(sale?.subtotal || 0),
@@ -6124,8 +6278,7 @@ function applyRemoteCashClosuresState(closures) {
 }
 
 function getTodayCashWithdrawals() {
-  const today = normalizeInputDateValue(new Date());
-  return getCurrentCashSessionWithdrawals().filter((withdrawal) => normalizeInputDateValue(withdrawal.date) === today);
+  return getCurrentCashSessionWithdrawals();
 }
 
 function getTodayCashWithdrawalsTotal() {
@@ -6624,7 +6777,8 @@ async function syncPharmacyProfileFromApi() {
   if (!INVENTORY_API_URL) return false;
 
   try {
-    const url = `${INVENTORY_API_URL}?mode=company`;
+    const companyId = encodeURIComponent(getCompanyProfileScope());
+    const url = `${INVENTORY_API_URL}?mode=company&companyId=${companyId}`;
     const data = await fetchJsonWithTimeout(url, {
       method: "GET",
       headers: { Accept: "application/json" },
@@ -6665,6 +6819,7 @@ async function savePharmacyProfileToApi(profile) {
     },
     body: JSON.stringify({
       action: "save_company_profile",
+      companyId: getCompanyProfileScope(),
       profile
     })
   });
@@ -9034,7 +9189,7 @@ function renderDashboard() {
 
   setText("dailySalesValue", formatCurrency(todaySales.reduce((sum, sale) => sum + Number(sale.total || 0), 0)));
   setText("dailySalesCount", `${todaySales.length} transacciones`);
-  setText("cashValue", formatCurrency(activeSales.filter((sale) => sale.paymentMethod === "Efectivo").reduce((sum, sale) => sum + Number(sale.total || 0), 0)));
+  setText("cashValue", formatCurrency(getSalesByPaymentMethod(activeSales, "Efectivo").reduce((sum, sale) => sum + Number(sale.total || 0), 0)));
   setText("inventoryCountValue", String(state.inventory.length));
   setText("lowStockValue", `${low} con stock bajo`);
   setText("clientCountValue", String(state.clients.length));
@@ -9046,7 +9201,7 @@ function renderDashboard() {
   setText("dashboardInventorySummary", `${state.inventory.length} productos`);
   setText("dashboardClientSummary", `${state.clients.length} clientes`);
   setText("dashboardSalesSummary", `${activeSales.length} ventas`);
-  setText("dashboardCashSummary", formatCurrency(activeSales.filter((sale) => sale.paymentMethod === "Efectivo").reduce((sum, sale) => sum + Number(sale.total || 0), 0)));
+  setText("dashboardCashSummary", formatCurrency(getSalesByPaymentMethod(activeSales, "Efectivo").reduce((sum, sale) => sum + Number(sale.total || 0), 0)));
   setText("dashboardStockHealth", out > 0 ? "Critico" : low > 0 ? "Atencion" : "Estable");
   setText("dashboardPromoCount", String(promotionCount));
   setText("dashboardPromoMeta", promotionCount ? `${promotionCount} descuento(s) aplicandose en POS` : "Sin descuentos configurados");
@@ -10686,7 +10841,7 @@ function updateSalesAvailability() {
   const cashInput = document.getElementById("cashReceived");
   const cashPanel = document.getElementById("cashPanel");
   const activePaymentMethod = document.querySelector(".payment-btn.active")?.textContent?.trim() || "Efectivo";
-  const requiresCash = activePaymentMethod === "Efectivo";
+  const requiresCash = normalizePaymentMethod(activePaymentMethod) === "Efectivo";
 
   document.querySelectorAll(".add-to-cart").forEach((button) => {
     const card = button.closest(".product-card");
@@ -10723,7 +10878,7 @@ function getFilteredSalesHistoryItems() {
       sale.clientDocument
     ].some((value) => normalizeSearchTerm(value).includes(search));
     const matchesStatus = statusFilter === "all" || getSaleStatusKey(sale) === statusFilter;
-    const matchesPayment = paymentFilter === "all" || sale.paymentMethod === paymentFilter;
+    const matchesPayment = paymentFilter === "all" || normalizePaymentMethod(sale.paymentMethod) === normalizePaymentMethod(paymentFilter);
     const matchesDate = !dateFilter || normalizeInputDateValue(sale.date) === dateFilter;
     return matchesSearch && matchesStatus && matchesPayment && matchesDate;
   });
@@ -10943,7 +11098,7 @@ function bindCartActions() {
 
 function updateChange() {
   const activePaymentMethod = document.querySelector(".payment-btn.active")?.textContent?.trim() || "Efectivo";
-  if (activePaymentMethod !== "Efectivo") {
+  if (normalizePaymentMethod(activePaymentMethod) !== "Efectivo") {
     setText("changeValue", formatCurrency(0));
     return;
   }
@@ -11630,7 +11785,7 @@ async function finishSale() {
   const total = pricing.total;
   const redeemedPoints = pricing.redeemedPoints;
   const loyaltyDiscount = pricing.loyaltyDiscount;
-  const paymentMethod = document.querySelector(".payment-btn.active")?.textContent?.trim() || "Efectivo";
+  const paymentMethod = normalizePaymentMethod(document.querySelector(".payment-btn.active")?.textContent);
   const cashReceived = paymentMethod === "Efectivo" ? Number(document.getElementById("cashReceived")?.value || 0) : 0;
   const change = paymentMethod === "Efectivo" ? Math.max(0, cashReceived - total) : 0;
 
@@ -11647,7 +11802,7 @@ async function finishSale() {
     id: crypto.randomUUID(),
     clientName: client?.name || "Cliente general",
     clientDocument: client?.document || "",
-    date: now.toLocaleDateString("es-CO"),
+    date: normalizeInputDateValue(now),
     time: now.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }),
     paymentMethod,
     cashReceived,
@@ -12170,8 +12325,8 @@ function bindSettingsEvents() {
       logoUrl: state.pharmacyProfile?.logoUrl || ""
     });
 
-    if (!profile.name) {
-      showInfoDialog("Ingresa al menos el nombre comercial de la tienda.", {
+    if (!isCompanyProfileComplete(profile)) {
+      showInfoDialog("Completa todos los datos de la empresa antes de continuar.", {
         title: "Dato requerido",
         variant: "warn"
       });
@@ -12187,6 +12342,7 @@ function bindSettingsEvents() {
 
     let dialogMessage = "";
     let dialogOptions = null;
+    let onboardingCompleted = false;
 
     try {
       await savePharmacyProfileToApi(profile);
@@ -12198,6 +12354,7 @@ function bindSettingsEvents() {
         title: "Configuracion guardada",
         variant: "success"
       };
+      onboardingCompleted = isCompanyOnboardingPage();
     } catch (error) {
       state.pharmacyProfile = profile;
       savePharmacyProfile();
@@ -12214,6 +12371,9 @@ function bindSettingsEvents() {
 
     if (dialogMessage && dialogOptions) {
       await showInfoDialog(dialogMessage, dialogOptions);
+    }
+    if (onboardingCompleted) {
+      window.location.replace("dashboard.html");
     }
   });
 
@@ -12688,7 +12848,8 @@ async function syncInventoryFromApi() {
   if (!INVENTORY_API_URL) return false;
 
   try {
-    const data = await fetchJsonWithTimeout(`${INVENTORY_API_URL}?mode=all`, {
+    const companyId = encodeURIComponent(getCompanyProfileScope());
+    const data = await fetchJsonWithTimeout(`${INVENTORY_API_URL}?mode=all&companyId=${companyId}`, {
       method: "GET",
       headers: { Accept: "application/json" },
       cache: "no-store"
@@ -12796,6 +12957,7 @@ function initializePage() {
   if (page === "cash-closure") {
     renderCashClosurePage();
     bindCashClosureEvents();
+    refreshCashDrawerControlData();
   }
   if (page === "month-closure") {
     renderMonthClosurePage();
@@ -12804,6 +12966,7 @@ function initializePage() {
   if (page === "cash-withdrawal") {
     renderCashWithdrawalsPage();
     bindCashWithdrawalEvents();
+    refreshCashDrawerControlData();
   }
   if (page === "support") {
     renderSupportPage();
@@ -12894,6 +13057,14 @@ function getCashDrawerStatusLabel() {
   await loadSupportApiConfig();
   const hasValidLicense = await ensureLicenseAccess();
   if (!hasValidLicense) return;
+
+  if (!isInternalTeamSession()) {
+    const profileSynced = await syncPharmacyProfileFromApi();
+    if (profileSynced && !isCompanyProfileComplete(state.pharmacyProfile) && !isCompanyOnboardingPage()) {
+      window.location.replace("configuracion.html?onboarding=1");
+      return;
+    }
+  }
 
   initializePage();
   window.setTimeout(() => {

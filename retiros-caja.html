@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="farmapos-web-db-api-url" content="https://script.google.com/macros/s/AKfycbwGGUxjvdyJhrjPZwjwujFMxbWMDDRwIxpB-SHgkvxsjbj-CKWSTp75Jb_LVUndpmIGYA/exec">
   <title>Sistema Facturacion | Retiros de Caja</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -40,8 +41,9 @@
       </header>
 
       <section class="kpi-grid">
+        <article class="kpi-card"><small>Total en caja</small><strong id="withdrawalCurrentDrawer">$ 0</strong><span>Base inicial mas ventas en efectivo, menos retiros</span></article>
         <article class="kpi-card accent"><small>Efectivo disponible para retirar</small><strong id="withdrawalAvailableCash">$ 0</strong><span>Ventas en efectivo despues de retiros, sin tocar la base</span></article>
-        <article class="kpi-card"><small>Retiros del dia</small><strong id="withdrawalTodayTotal">$ 0</strong><span><span id="withdrawalTodayCount">0</span> registros hoy</span></article>
+        <article class="kpi-card"><small>Retiros de caja</small><strong id="withdrawalTodayTotal">$ 0</strong><span><span id="withdrawalTodayCount">0</span> registros de la sesion</span></article>
         <article class="kpi-card"><small>Cajero activo</small><strong id="withdrawalCashierName">--</strong><span id="withdrawalCashierUser">--</span></article>
       </section>
 
