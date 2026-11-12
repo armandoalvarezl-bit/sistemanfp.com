@@ -1474,6 +1474,16 @@
     @media(max-width:640px){.presentation-toggle{left:12px;bottom:12px;min-height:40px;padding:8px 12px;font-size:11px}}
     @media(prefers-reduced-motion:reduce){.presentation-toggle{transition:none}}
     @media(prefers-reduced-motion:reduce){.page-turn{opacity:1;clip-path:none;transition:none}}
+    .journey-sparkles{position:fixed;inset:0;z-index:15;overflow:hidden;pointer-events:none;contain:strict;visibility:hidden}
+    body:not(.invitation-closed) .journey-sparkles{visibility:visible}
+    .journey-sparkles span{position:absolute;left:var(--spark-x);top:var(--spark-y);width:var(--spark-size);height:var(--spark-size);color:#d8b66d;opacity:0;transform:scale(.25) rotate(0deg);animation:sparkleTwinkle var(--spark-duration) ease-in-out var(--spark-delay) infinite}
+    .journey-sparkles span:before,.journey-sparkles span:after{content:"";position:absolute;left:50%;top:50%;border-radius:99px;background:currentColor;transform:translate(-50%,-50%)}
+    .journey-sparkles span:before{width:100%;height:24%}
+    .journey-sparkles span:after{width:24%;height:100%}
+    .journey-sparkles span:nth-child(3n){color:#d99ba8}
+    .journey-sparkles span:nth-child(3n + 1){color:#fff;filter:drop-shadow(0 0 4px #d7b76a)}
+    @keyframes sparkleTwinkle{0%,100%{opacity:0;transform:scale(.25) rotate(0deg)}45%{opacity:.72;transform:scale(1) rotate(45deg)}58%{opacity:.5;transform:scale(.72) rotate(60deg)}}
+    @media(prefers-reduced-motion:reduce){.journey-sparkles span{animation:none;opacity:.25;transform:scale(.55)}}
     .closing{position:relative;isolation:isolate;display:grid;place-items:center;height:100svh;min-height:100svh;padding:50px 18px 62px;overflow:hidden;text-align:center;background:#fff8f3 url('assets/fondo-flores-pastel.jpeg') center/auto 100% repeat-x}
     .closing.invitation-read .closing-inner{animation:invitationCardRead 1.1s cubic-bezier(.2,.75,.25,1) both}
     @keyframes invitationCardRead{0%{transform:scale(1);filter:drop-shadow(0 0 0 #5b3d2700)}55%{transform:scale(.94) rotate(-1deg);filter:drop-shadow(0 15px 18px #5b3d2738)}100%{transform:scale(1);filter:drop-shadow(0 7px 10px #5b3d271c)}}
@@ -1511,6 +1521,7 @@
 </head>
 
 <body class="invitation-closed">
+  <div class="journey-sparkles" id="journeySparkles" aria-hidden="true"></div>
   <div class="invitation-gate" id="invitationGate" role="dialog" aria-modal="true" aria-label="Abrir invitación de Primera Comunión">
     <div class="gate-card">
       <img class="gate-doll" src="assets/nina-comunion-recortada.png" alt="Niña rezando con su vestido de Primera Comunión" fetchpriority="high" decoding="async">
